@@ -17,5 +17,10 @@
     "noUnusedParameters": true,
     "types": ["node"]
   },
-  "include": ["vite.config.ts", "vitest.config.ts", "tests"]
+  "include": [
+    "vite.config.ts",
+    "vitest.config.ts",
+    "tests",
+    "worker/worker-configuration.d.ts"
+  ]
 }

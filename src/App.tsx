@@ -550,7 +550,7 @@ function Footer({ data }: { data: UsagePayload }) {
     <footer>
       <Brand />
       <p>额度目录核对于 {data.quotaCatalogAsOf} · 边界时区 UTC · 开源自托管</p>
-      <a href="https://github.com/" target="_blank" rel="noreferrer">GitHub <ArrowUpRight size={14} /></a>
+      <a href="https://github.com/ThaneJoss/cloudflare-usage-guard" target="_blank" rel="noreferrer">GitHub <ArrowUpRight size={14} /></a>
     </footer>
   );
 }

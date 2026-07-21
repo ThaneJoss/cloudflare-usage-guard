@@ -1,7 +1,5 @@
 # Cloudflare Usage Guard
 
-> 开发中：当前仓库是可构建的首版骨架，后续会继续重写界面与用量采集逻辑。
-
 一个部署在 Cloudflare Pages + Workers 上的只读资源用量面板，重点展示免费额度达到上限后会停止服务或开始计费的产品。
 
 当前覆盖：
@@ -13,6 +11,8 @@
 - Queues 计费操作
 - Pages 月度构建次数
 - PayGo 账期明细（可选）
+
+采集器会并行读取各产品，并把失败限制在对应卡片内。Pages 项目、部署记录与 PayGo 明细会自动分页；Pages 项目以受控并发读取，避免账户项目较多时瞬间触发 API 限流。若个别 Pages 项目读取失败，面板会明确标记为“下限数据”，而不是把不完整计数显示成精确值。
 
 ## 架构与安全
 
@@ -76,8 +76,11 @@ pnpm deploy:pages
 
 ```bash
 pnpm typecheck
+pnpm test
 pnpm build
 pnpm worker:dry-run
 ```
+
+测试覆盖鉴权、CORS、UTC 日/月窗口、额度状态、R2 操作分类、存储快照合并、REST 分页、部分数据源失败以及聚合摘要。
 
 额度常量核对日期为 `2026-07-21`。Cloudflare 产品定价会变化，部署前请重新核对官方文档。

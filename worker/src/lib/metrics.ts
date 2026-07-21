@@ -31,7 +31,14 @@ interface MetricInput {
 }
 
 export function createMetric(input: MetricInput): UsageMetric {
-  const used = input.used === null ? null : Math.max(0, input.used);
+  if (!Number.isFinite(input.limit) || input.limit <= 0) {
+    throw new RangeError("Metric limit must be a positive finite number");
+  }
+
+  const used =
+    input.used === null || !Number.isFinite(input.used)
+      ? null
+      : Math.max(0, input.used);
   const utilization = used === null ? null : (used / input.limit) * 100;
 
   return {
@@ -110,6 +117,9 @@ const R2_CLASS_A_ACTIONS = new Set([
   "CopyObject",
   "CompleteMultipartUpload",
   "CreateMultipartUpload",
+  "LifecycleStorageTierTransition",
+  "ListMultipartUploads",
+  "ListParts",
   "UploadPart",
   "UploadPartCopy",
   "PutBucketEncryption",

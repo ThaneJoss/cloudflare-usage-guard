@@ -3,9 +3,10 @@ export async function verifyDashboardToken(
   expectedToken: string,
 ): Promise<boolean> {
   const authorization = request.headers.get("Authorization");
-  if (!authorization?.startsWith("Bearer ")) return false;
+  const match = authorization?.match(/^Bearer[ \t]+(.+)$/i);
+  if (!match) return false;
 
-  const providedToken = authorization.slice("Bearer ".length);
+  const providedToken = match[1];
   if (!providedToken || !expectedToken) return false;
 
   const encoder = new TextEncoder();
@@ -14,11 +15,19 @@ export async function verifyDashboardToken(
     crypto.subtle.digest("SHA-256", encoder.encode(expectedToken)),
   ]);
 
-  const subtle = crypto.subtle as SubtleCrypto & {
-    timingSafeEqual(
-      left: ArrayBuffer | ArrayBufferView,
-      right: ArrayBuffer | ArrayBufferView,
-    ): boolean;
-  };
-  return subtle.timingSafeEqual(providedDigest, expectedDigest);
+  return constantTimeEqual(
+    new Uint8Array(providedDigest),
+    new Uint8Array(expectedDigest),
+  );
+}
+
+function constantTimeEqual(left: Uint8Array, right: Uint8Array): boolean {
+  let mismatch = left.length ^ right.length;
+  const length = Math.max(left.length, right.length);
+
+  for (let index = 0; index < length; index += 1) {
+    mismatch |= (left[index] ?? 0) ^ (right[index] ?? 0);
+  }
+
+  return mismatch === 0;
 }
