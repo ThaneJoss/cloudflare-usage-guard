@@ -1,0 +1,24 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "cloudflare-usage-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-21",
+  "compatibility_flags": ["nodejs_compat"],
+  "secrets": {
+    "required": ["CF_ACCOUNT_ID", "CF_API_TOKEN", "DASHBOARD_TOKEN"]
+  },
+  "vars": {
+    "ALLOWED_ORIGINS": "http://localhost:5173,https://your-project.pages.dev"
+  },
+  "observability": {
+    "enabled": true,
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1
+    },
+    "traces": {
+      "enabled": true,
+      "head_sampling_rate": 0.05
+    }
+  }
+}
