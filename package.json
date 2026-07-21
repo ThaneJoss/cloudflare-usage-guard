@@ -14,7 +14,9 @@
     "worker:types": "wrangler types worker/worker-configuration.d.ts --config worker/wrangler.jsonc",
     "worker:dry-run": "wrangler deploy --dry-run --config worker/wrangler.jsonc --secrets-file worker/.dev.vars.example",
     "deploy:worker": "wrangler deploy --config worker/wrangler.jsonc",
-    "deploy:pages": "wrangler pages deploy dist --project-name cloudflare-usage-guard"
+    "deploy:pages": "wrangler pages deploy dist --project-name cloudflare-usage-guard",
+    "deploy": "pnpm --filter cloudflare-usage-guard... run build && wrangler deploy",
+    "preview": "pnpm --filter cloudflare-usage-guard... run build && wrangler dev"
   },
   "engines": {
     "node": ">=22"
@@ -27,6 +29,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.45.1",
     "@cloudflare/vitest-pool-workers": "^0.18.6",
     "@types/node": "^26.1.1",
     "@types/react": "^19.2.17",
