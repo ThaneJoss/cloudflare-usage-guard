@@ -9,6 +9,7 @@
     "build": "pnpm typecheck && vite build",
     "typecheck": "tsc -p tsconfig.app.json && tsc -p tsconfig.worker.json && tsc -p tsconfig.node.json",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
     "worker:types": "wrangler types worker/worker-configuration.d.ts --config worker/wrangler.jsonc",
     "worker:dry-run": "wrangler deploy --dry-run --config worker/wrangler.jsonc --secrets-file worker/.dev.vars.example",

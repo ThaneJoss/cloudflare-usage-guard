@@ -44,15 +44,28 @@ interface ProductDefinition {
   unavailableMetrics: () => UsageMetric[];
 }
 
+export interface UsageClient {
+  getWorkersUsage(windows: TimeWindows): Promise<WorkersUsageRaw>;
+  getKvUsage(windows: TimeWindows): Promise<KvUsageRaw>;
+  getD1Usage(windows: TimeWindows): Promise<D1UsageRaw>;
+  getR2Usage(windows: TimeWindows): Promise<R2UsageRaw>;
+  getQueueUsage(windows: TimeWindows): Promise<QueueUsageRaw>;
+  getPagesUsage(windows: TimeWindows): Promise<PagesUsageRaw>;
+  getPaygoUsage(): Promise<PaygoUsageRawRow[]>;
+}
+
 export async function collectUsage(
   env: Pick<Env, "CF_ACCOUNT_ID" | "CF_API_TOKEN">,
   now = new Date(),
+  providedClient?: UsageClient,
 ): Promise<UsagePayload> {
   const windows = getTimeWindows(now);
-  const client = new CloudflareClient({
-    accountId: env.CF_ACCOUNT_ID,
-    apiToken: env.CF_API_TOKEN,
-  });
+  const client =
+    providedClient ??
+    new CloudflareClient({
+      accountId: env.CF_ACCOUNT_ID,
+      apiToken: env.CF_API_TOKEN,
+    });
 
   const productResults = await Promise.all([
     loadProduct(

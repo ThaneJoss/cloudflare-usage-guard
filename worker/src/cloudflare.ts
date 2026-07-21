@@ -11,6 +11,9 @@ import {
 const CLOUDFLARE_API = "https://api.cloudflare.com/client/v4";
 const CLOUDFLARE_GRAPHQL = `${CLOUDFLARE_API}/graphql`;
 const REQUEST_TIMEOUT_MS = 15_000;
+const REST_PAGE_SIZE = 100;
+const MAX_REST_PAGES = 250;
+const PAGES_PROJECT_CONCURRENCY = 5;
 
 const numberSchema = z.number().finite();
 const graphQlEnvelopeSchema = z.object({
@@ -20,6 +23,7 @@ const graphQlEnvelopeSchema = z.object({
         accounts: z.array(z.record(z.string(), z.unknown())),
       }),
     })
+    .nullable()
     .optional(),
   errors: z
     .array(
@@ -142,6 +146,7 @@ export class CloudflareApiError extends Error {
 export interface CloudflareClientOptions {
   accountId: string;
   apiToken: string;
+  fetcher?: typeof fetch;
 }
 
 export interface WorkersUsageRaw {
@@ -200,10 +205,12 @@ export interface PaygoUsageRawRow {
 export class CloudflareClient {
   readonly #accountId: string;
   readonly #apiToken: string;
+  readonly #fetcher: typeof fetch;
 
   constructor(options: CloudflareClientOptions) {
     this.#accountId = options.accountId;
     this.#apiToken = options.apiToken;
+    this.#fetcher = options.fetcher ?? fetch;
   }
 
   async getWorkersUsage(windows: TimeWindows): Promise<WorkersUsageRaw> {
@@ -473,17 +480,27 @@ export class CloudflareClient {
   }
 
   async getPagesUsage(windows: TimeWindows): Promise<PagesUsageRaw> {
-    const projectsResponse = await this.#rest(
-      `/accounts/${encodeURIComponent(this.#accountId)}/pages/projects?page=1&per_page=20`,
+    const projectsResult = await this.#restList(
+      `/accounts/${encodeURIComponent(this.#accountId)}/pages/projects`,
+      pagesProjectSchema,
+      { maxPages: 5 },
     );
-    const projects = z.array(pagesProjectSchema).parse(projectsResponse.result);
-    const projectResults = await Promise.allSettled(
-      projects.map(async (project) => {
-        const response = await this.#rest(
-          `/accounts/${encodeURIComponent(this.#accountId)}/pages/projects/${encodeURIComponent(project.name)}/deployments?page=1&per_page=100`,
+    const projects = projectsResult.items;
+    const projectResults = await mapSettledWithConcurrency(
+      projects,
+      PAGES_PROJECT_CONCURRENCY,
+      async (project) => {
+        const deploymentsResult = await this.#restList(
+          `/accounts/${encodeURIComponent(this.#accountId)}/pages/projects/${encodeURIComponent(project.name)}/deployments`,
+          pagesDeploymentSchema,
+          {
+            stopWhen: (deployments) =>
+              deployments.some(
+                (deployment) => deployment.created_on < windows.monthStart,
+              ),
+          },
         );
-        const deployments = z.array(pagesDeploymentSchema).parse(response.result);
-        const builds = deployments.filter((deployment) => {
+        const builds = deploymentsResult.items.filter((deployment) => {
           const trigger = deployment.deployment_trigger?.type;
           return (
             !deployment.is_skipped &&
@@ -494,14 +511,14 @@ export class CloudflareClient {
         }).length;
         return {
           builds,
-          partial: (response.resultInfo?.total_pages ?? 1) > 1,
+          partial: !deploymentsResult.complete,
         };
-      }),
+      },
     );
 
     let builds = 0;
     let failedProjects = 0;
-    let partial = (projectsResponse.resultInfo?.total_pages ?? 1) > 1;
+    let partial = !projectsResult.complete;
     for (const result of projectResults) {
       if (result.status === "fulfilled") {
         builds += result.value.builds;
@@ -521,10 +538,14 @@ export class CloudflareClient {
   }
 
   async getPaygoUsage(): Promise<PaygoUsageRawRow[]> {
-    const response = await this.#rest(
+    const result = await this.#restList(
       `/accounts/${encodeURIComponent(this.#accountId)}/paygo-usage`,
+      z.record(z.string(), z.unknown()),
     );
-    const rows = z.array(z.record(z.string(), z.unknown())).parse(response.result);
+    if (!result.complete) {
+      throw new CloudflareApiError("PayGo API 明细超过安全分页上限");
+    }
+    const rows = result.items;
 
     return rows.map((row, index) => {
       const service = stringField(row, "ServiceName", "service_name") || "Unknown";
@@ -564,7 +585,7 @@ export class CloudflareClient {
     variables: Record<string, string>,
     groupSchema: T,
   ): Promise<Array<z.infer<T>>> {
-    const response = await fetch(CLOUDFLARE_GRAPHQL, {
+    const response = await this.#fetcher(CLOUDFLARE_GRAPHQL, {
       method: "POST",
       headers: this.#headers(),
       body: JSON.stringify({ query, variables }),
@@ -593,7 +614,7 @@ export class CloudflareClient {
     result: unknown;
     resultInfo: z.infer<typeof restEnvelopeSchema>["result_info"];
   }> {
-    const response = await fetch(`${CLOUDFLARE_API}${path}`, {
+    const response = await this.#fetcher(`${CLOUDFLARE_API}${path}`, {
       headers: this.#headers(),
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
@@ -608,6 +629,46 @@ export class CloudflareClient {
       );
     }
     return { result: body.result, resultInfo: body.result_info };
+  }
+
+  async #restList<T>(
+    path: string,
+    itemSchema: z.ZodType<T>,
+    options: {
+      maxPages?: number;
+      stopWhen?: (items: T[]) => boolean;
+    } = {},
+  ): Promise<{ items: T[]; complete: boolean }> {
+    const items: T[] = [];
+    const maxPages = options.maxPages ?? MAX_REST_PAGES;
+
+    for (let page = 1; page <= maxPages; page += 1) {
+      const response = await this.#rest(
+        withPagination(path, page, REST_PAGE_SIZE),
+      );
+      const pageItems = z.array(itemSchema).parse(response.result);
+      items.push(...pageItems);
+
+      if (options.stopWhen?.(pageItems)) {
+        return { items, complete: true };
+      }
+
+      const resultInfo = response.resultInfo;
+      const totalPages = resultInfo?.total_pages;
+      const totalCount = resultInfo?.total_count;
+      const reportedPageSize = resultInfo?.per_page ?? REST_PAGE_SIZE;
+      const hasNextPage =
+        totalPages !== undefined
+          ? page < totalPages
+          : totalCount !== undefined
+            ? items.length < totalCount
+            : reportedPageSize > 0 && pageItems.length >= reportedPageSize;
+      if (!hasNextPage || pageItems.length === 0) {
+        return { items, complete: true };
+      }
+    }
+
+    return { items, complete: false };
   }
 
   #headers(): Headers {
@@ -628,6 +689,28 @@ async function parseJson(response: Response): Promise<unknown> {
       response.status,
     );
   }
+}
+
+function withPagination(path: string, page: number, perPage: number): string {
+  const url = new URL(path, CLOUDFLARE_API);
+  url.searchParams.set("page", String(page));
+  url.searchParams.set("per_page", String(perPage));
+  return `${url.pathname}${url.search}`;
+}
+
+async function mapSettledWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  map: (item: T) => Promise<R>,
+): Promise<Array<PromiseSettledResult<R>>> {
+  const results: Array<PromiseSettledResult<R>> = [];
+
+  for (let start = 0; start < items.length; start += concurrency) {
+    const batch = items.slice(start, start + concurrency);
+    results.push(...(await Promise.allSettled(batch.map(map))));
+  }
+
+  return results;
 }
 
 function sanitizeMessage(message: string | undefined): string {
