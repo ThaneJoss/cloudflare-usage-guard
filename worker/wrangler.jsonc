@@ -8,7 +8,7 @@
     "required": ["CF_ACCOUNT_ID", "CF_API_TOKEN", "DASHBOARD_TOKEN"]
   },
   "vars": {
-    "ALLOWED_ORIGINS": "http://localhost:5173,https://your-project.pages.dev"
+    "ALLOWED_ORIGINS": "https://cloudflare.thanejoss.com"
   },
   "observability": {
     "enabled": true,
