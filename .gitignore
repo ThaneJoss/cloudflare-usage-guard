@@ -10,11 +10,8 @@ dist/
 .dev.vars
 .dev.vars.*
 !.dev.vars.example
-!worker/.dev.vars.example
 .prod.secrets
 .prod.secrets.*
 
 .DS_Store
 coverage/
-
-.dev.vars*
