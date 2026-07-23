@@ -73,6 +73,9 @@ pnpm exec wrangler secret bulk .prod.secrets
 pnpm deploy:worker
 ```
 
+Cloudflare Dashboard 中 `Settings > Build` 下的变量仅供构建过程使用。以上三项必须配置在
+`Settings > Variables & Secrets` 中，才能作为 Worker 运行时 Secret 被代码和 Wrangler 识别。
+
 Cloudflare Workers Builds 应使用以下设置：
 
 - Build command：`pnpm build:worker`
