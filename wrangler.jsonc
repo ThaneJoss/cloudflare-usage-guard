@@ -1,14 +1,32 @@
 {
-  "$schema": "node_modules/wrangler/config-schema.json",
+  "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "cloudflare-usage-guard",
+  "main": "worker/src/index.ts",
   "compatibility_date": "2026-07-21",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": true,
+  "routes": [
+    {
+      "pattern": "api.cloudflare.thanejoss.com",
+      "custom_domain": true
+    }
+  ],
+  "secrets": {
+    "required": ["CF_ACCOUNT_ID", "CF_API_TOKEN", "DASHBOARD_TOKEN"]
+  },
+  "vars": {
+    "ALLOWED_ORIGINS": "https://cloudflare.thanejoss.com"
+  },
   "observability": {
-    "enabled": true
-  },
-  "assets": {
-    "not_found_handling": "single-page-application"
-  },
-  "compatibility_flags": [
-    "nodejs_compat"
-  ]
+    "enabled": true,
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1
+    },
+    "traces": {
+      "enabled": true,
+      "head_sampling_rate": 0.05
+    }
+  }
 }

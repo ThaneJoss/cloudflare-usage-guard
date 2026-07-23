@@ -5,18 +5,19 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:worker": "wrangler dev --config worker/wrangler.jsonc",
+    "dev:worker": "wrangler dev",
     "build": "pnpm typecheck && vite build",
+    "build:worker": "tsc -p tsconfig.worker.json",
     "typecheck": "tsc -p tsconfig.app.json && tsc -p tsconfig.worker.json && tsc -p tsconfig.node.json",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
-    "worker:types": "wrangler types worker/worker-configuration.d.ts --config worker/wrangler.jsonc",
-    "worker:dry-run": "wrangler deploy --dry-run --config worker/wrangler.jsonc --secrets-file worker/.dev.vars.example",
-    "deploy:worker": "wrangler deploy --config worker/wrangler.jsonc",
-    "deploy:pages": "wrangler pages deploy dist --project-name cloudflare-usage-guard",
-    "deploy": "pnpm --filter cloudflare-usage-guard... run build && wrangler deploy",
-    "preview": "pnpm --filter cloudflare-usage-guard... run build && wrangler dev"
+    "worker:types": "wrangler types worker/worker-configuration.d.ts",
+    "worker:dry-run": "wrangler deploy --dry-run --secrets-file .dev.vars.example",
+    "deploy:worker": "wrangler deploy",
+    "preview:worker": "wrangler versions upload",
+    "deploy": "pnpm deploy:worker",
+    "preview": "vite preview"
   },
   "engines": {
     "node": ">=22"
@@ -29,7 +30,6 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@cloudflare/vite-plugin": "^1.45.1",
     "@cloudflare/vitest-pool-workers": "^0.18.6",
     "@types/node": "^26.1.1",
     "@types/react": "^19.2.17",

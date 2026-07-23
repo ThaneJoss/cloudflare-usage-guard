@@ -1,6 +1,6 @@
 # Cloudflare Usage Guard
 
-一个部署在 Cloudflare Pages + Workers 上的只读资源用量面板，重点展示免费额度达到上限后会停止服务或开始计费的产品。
+一个前端部署在 Vercel、后端部署在 Cloudflare Workers 的只读资源用量面板，重点展示免费额度达到上限后会停止服务或开始计费的产品。
 
 当前覆盖：
 
@@ -16,8 +16,9 @@
 
 ## 架构与安全
 
-- `dist/` 由 Cloudflare Pages 托管。
-- `worker/` 是独立的只读聚合 API。
+- `dist/` 由 Vercel 托管，生产地址为 `https://cloudflare.thanejoss.com`。
+- `worker/` 是独立的只读聚合 API，由根目录 `wrangler.jsonc` 部署到 Cloudflare Workers。
+- API Worker 只绑定 `https://api.cloudflare.thanejoss.com`，不携带或托管前端静态资源。
 - Cloudflare API Token 只作为 Worker Secret 保存，永远不会发送到浏览器。
 - 浏览器使用独立的 `DASHBOARD_TOKEN` 访问 Worker；该口令只保存在 `sessionStorage`。
 - GraphQL 卡片是运行分析估算，不等同于账单；PayGo API 明细才用于展示精确费用。
@@ -32,7 +33,7 @@
 
 ```bash
 pnpm install
-cp worker/.dev.vars.example worker/.dev.vars
+cp .dev.vars.example .dev.vars
 pnpm dev:worker
 ```
 
@@ -47,29 +48,52 @@ pnpm dev
 
 ## 部署
 
-先编辑 `worker/wrangler.jsonc`：
+前端和后端位于同一个仓库，但使用彼此独立的部署入口。
 
-1. 把 `ALLOWED_ORIGINS` 中的占位 Pages 域名替换为真实域名。
-2. 如需修改 Worker 名称，同步调整部署地址。
+### 后端：Cloudflare Workers
 
-把生产密钥复制到一个被 Git 忽略的文件：
+根目录 `wrangler.jsonc` 是 Worker 配置的唯一来源：
+
+- Worker：`cloudflare-usage-guard`
+- 入口：`worker/src/index.ts`
+- 自定义域名：`api.cloudflare.thanejoss.com`
+- 允许的浏览器来源：`https://cloudflare.thanejoss.com`
+- 不配置 `assets`，因此不会把 Vite 前端部署到 API 域名
+
+把生产密钥复制到被 Git 忽略的文件：
 
 ```bash
-cp worker/.dev.vars.example worker/.prod.secrets
+cp .dev.vars.example .prod.secrets
 ```
 
 填写真实值后，通过 Wrangler 一次推送全部 Secret：
 
 ```bash
-pnpm exec wrangler secret bulk worker/.prod.secrets --config worker/wrangler.jsonc
+pnpm exec wrangler secret bulk .prod.secrets
 pnpm deploy:worker
 ```
 
-构建 Pages 时设置公开变量 `VITE_API_BASE_URL=https://你的-worker.workers.dev`，然后运行：
+Cloudflare Dashboard 中 `Settings > Build` 下的变量仅供构建过程使用。以上三项必须配置在
+`Settings > Variables & Secrets` 中，才能作为 Worker 运行时 Secret 被代码和 Wrangler 识别。
+
+Cloudflare Workers Builds 应使用以下设置：
+
+- Build command：`pnpm build:worker`
+- Deploy command：`pnpm deploy:worker`
+- Non-production branch deploy command：`pnpm preview:worker`
+- Root directory：仓库根目录
+
+### 前端：Vercel
+
+Vercel 使用 `pnpm build` 构建 Vite 前端，输出目录为 `dist`。仓库中的 `.env.production` 已将 API 地址固定为 `https://api.cloudflare.thanejoss.com`；生产域名为 `https://cloudflare.thanejoss.com`。
+
+前端部署不使用 Wrangler，也不由 Cloudflare Workers Builds 托管。
+
+本地验证生产构建：
 
 ```bash
-VITE_API_BASE_URL=https://你的-worker.workers.dev pnpm build
-pnpm deploy:pages
+pnpm build
+pnpm preview
 ```
 
 ## 校验
