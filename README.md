@@ -78,14 +78,20 @@ Cloudflare Dashboard 中 `Settings > Build` 下的变量仅供构建过程使用
 
 Cloudflare Workers Builds 应使用以下设置：
 
-- Build command：`pnpm build:worker`
-- Deploy command：`pnpm deploy:worker`
-- Non-production branch deploy command：`pnpm preview:worker`
+- Build command：`pnpm run build`
+- Deploy command：`npx wrangler deploy`
+- Non-production branch deploy command：`npx wrangler versions upload`
 - Root directory：仓库根目录
+
+Cloudflare Workers Builds 会注入 `WORKERS_CI=1`。根构建命令据此只执行
+`build:worker`，检查 Worker TypeScript；Wrangler 随后负责打包、上传和部署。
 
 ### 前端：Vercel
 
-Vercel 使用 `pnpm build` 构建 Vite 前端，输出目录为 `dist`。仓库中的 `.env.production` 已将 API 地址固定为 `https://api.cloudflare.thanejoss.com`；生产域名为 `https://cloudflare.thanejoss.com`。
+Vercel 同样使用 `pnpm run build`。其环境中没有 `WORKERS_CI=1`，因此根构建命令执行
+`build:frontend`，构建 Vite 前端并输出到 `dist`。仓库中的 `.env.production` 已将 API
+地址固定为 `https://api.cloudflare.thanejoss.com`；生产域名为
+`https://cloudflare.thanejoss.com`。
 
 前端部署不使用 Wrangler，也不由 Cloudflare Workers Builds 托管。
 
