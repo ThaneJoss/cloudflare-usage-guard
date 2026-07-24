@@ -13,6 +13,7 @@ const CLOUDFLARE_GRAPHQL = `${CLOUDFLARE_API}/graphql`;
 const REQUEST_TIMEOUT_MS = 15_000;
 const REST_PAGE_SIZE = 100;
 const MAX_REST_PAGES = 250;
+const PAGES_REST_PAGE_SIZE = 10;
 const PAGES_PROJECT_CONCURRENCY = 5;
 
 const numberSchema = z.number().finite();
@@ -31,6 +32,7 @@ const graphQlEnvelopeSchema = z.object({
         message: z.string(),
       }),
     )
+    .nullable()
     .optional(),
 });
 
@@ -483,7 +485,7 @@ export class CloudflareClient {
     const projectsResult = await this.#restList(
       `/accounts/${encodeURIComponent(this.#accountId)}/pages/projects`,
       pagesProjectSchema,
-      { maxPages: 5 },
+      { maxPages: 5, perPage: PAGES_REST_PAGE_SIZE },
     );
     const projects = projectsResult.items;
     const projectResults = await mapSettledWithConcurrency(
@@ -494,6 +496,7 @@ export class CloudflareClient {
           `/accounts/${encodeURIComponent(this.#accountId)}/pages/projects/${encodeURIComponent(project.name)}/deployments`,
           pagesDeploymentSchema,
           {
+            perPage: PAGES_REST_PAGE_SIZE,
             stopWhen: (deployments) =>
               deployments.some(
                 (deployment) => deployment.created_on < windows.monthStart,
@@ -636,15 +639,17 @@ export class CloudflareClient {
     itemSchema: z.ZodType<T>,
     options: {
       maxPages?: number;
+      perPage?: number;
       stopWhen?: (items: T[]) => boolean;
     } = {},
   ): Promise<{ items: T[]; complete: boolean }> {
     const items: T[] = [];
     const maxPages = options.maxPages ?? MAX_REST_PAGES;
+    const perPage = options.perPage ?? REST_PAGE_SIZE;
 
     for (let page = 1; page <= maxPages; page += 1) {
       const response = await this.#rest(
-        withPagination(path, page, REST_PAGE_SIZE),
+        withPagination(path, page, perPage),
       );
       const pageItems = z.array(itemSchema).parse(response.result);
       items.push(...pageItems);
@@ -656,7 +661,7 @@ export class CloudflareClient {
       const resultInfo = response.resultInfo;
       const totalPages = resultInfo?.total_pages;
       const totalCount = resultInfo?.total_count;
-      const reportedPageSize = resultInfo?.per_page ?? REST_PAGE_SIZE;
+      const reportedPageSize = resultInfo?.per_page ?? perPage;
       const hasNextPage =
         totalPages !== undefined
           ? page < totalPages
