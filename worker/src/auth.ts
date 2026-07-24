@@ -1,33 +1,43 @@
-export async function verifyDashboardToken(
+import {
+  createRemoteJWKSet,
+  jwtVerify,
+  type JWTVerifyGetKey,
+} from "jose";
+
+const jwksByIssuer = new Map<string, JWTVerifyGetKey>();
+
+export async function verifyAccessJwt(
   request: Request,
-  expectedToken: string,
+  teamDomain: string,
+  policyAudience: string,
+  jwksOverride?: JWTVerifyGetKey,
 ): Promise<boolean> {
-  const authorization = request.headers.get("Authorization");
-  const match = authorization?.match(/^Bearer[ \t]+(.+)$/i);
-  if (!match) return false;
+  const token = request.headers.get("Cf-Access-Jwt-Assertion");
+  const issuer = teamDomain.replace(/\/+$/, "");
+  if (!token || !issuer || !policyAudience) return false;
 
-  const providedToken = match[1];
-  if (!providedToken || !expectedToken) return false;
-
-  const encoder = new TextEncoder();
-  const [providedDigest, expectedDigest] = await Promise.all([
-    crypto.subtle.digest("SHA-256", encoder.encode(providedToken)),
-    crypto.subtle.digest("SHA-256", encoder.encode(expectedToken)),
-  ]);
-
-  return constantTimeEqual(
-    new Uint8Array(providedDigest),
-    new Uint8Array(expectedDigest),
-  );
+  try {
+    const jwks = jwksOverride ?? getRemoteJwks(issuer);
+    await jwtVerify(token, jwks, {
+      algorithms: ["RS256"],
+      issuer,
+      audience: policyAudience,
+    });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
-function constantTimeEqual(left: Uint8Array, right: Uint8Array): boolean {
-  let mismatch = left.length ^ right.length;
-  const length = Math.max(left.length, right.length);
+function getRemoteJwks(issuer: string): JWTVerifyGetKey {
+  const cached = jwksByIssuer.get(issuer);
+  if (cached) return cached;
 
-  for (let index = 0; index < length; index += 1) {
-    mismatch |= (left[index] ?? 0) ^ (right[index] ?? 0);
+  const jwks = createRemoteJWKSet(new URL(`${issuer}/cdn-cgi/access/certs`));
+  if (jwksByIssuer.size >= 4) {
+    const oldestIssuer = jwksByIssuer.keys().next().value;
+    if (oldestIssuer) jwksByIssuer.delete(oldestIssuer);
   }
-
-  return mismatch === 0;
+  jwksByIssuer.set(issuer, jwks);
+  return jwks;
 }

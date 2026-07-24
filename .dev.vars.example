@@ -1,3 +1,3 @@
 CF_ACCOUNT_ID=00000000000000000000000000000000
 CF_API_TOKEN=replace-with-a-read-only-cloudflare-api-token
-DASHBOARD_TOKEN=replace-with-a-long-random-dashboard-token
+POLICY_AUD=replace-with-the-access-application-aud-tag

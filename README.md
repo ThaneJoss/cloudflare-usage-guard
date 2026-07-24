@@ -20,7 +20,8 @@
 - `worker/` 是独立的只读聚合 API，由根目录 `wrangler.jsonc` 部署到 Cloudflare Workers。
 - API Worker 只绑定 `https://api.cloudflare.thanejoss.com`，不携带或托管前端静态资源。
 - Cloudflare API Token 只作为 Worker Secret 保存，永远不会发送到浏览器。
-- 浏览器使用独立的 `DASHBOARD_TOKEN` 访问 Worker；该口令只保存在 `sessionStorage`。
+- Cloudflare Access 直接保护 Worker；Worker 还会校验 `Cf-Access-Jwt-Assertion` 的签名、签发方和应用 AUD。
+- 浏览器使用 Access Cookie 访问 API，不保存独立的 Dashboard 密码。
 - GraphQL 卡片是运行分析估算，不等同于账单；PayGo API 明细才用于展示精确费用。
 
 建议创建一个只读 Cloudflare API Token，授予：
@@ -58,6 +59,7 @@ pnpm dev
 - 入口：`worker/src/index.ts`
 - 自定义域名：`api.cloudflare.thanejoss.com`
 - 允许的浏览器来源：`https://cloudflare.thanejoss.com`
+- Access 团队域名：`https://thanejoss.cloudflareaccess.com`
 - 不配置 `assets`，因此不会把 Vite 前端部署到 API 域名
 
 把生产密钥复制到被 Git 忽略的文件：
@@ -73,8 +75,17 @@ pnpm exec wrangler secret bulk .prod.secrets
 pnpm deploy:worker
 ```
 
-Cloudflare Dashboard 中 `Settings > Build` 下的变量仅供构建过程使用。以上三项必须配置在
-`Settings > Variables & Secrets` 中，才能作为 Worker 运行时 Secret 被代码和 Wrangler 识别。
+在 Zero Trust 的 Access 应用中把 `cloudflare-usage-guard` Worker 作为 destination，并为允许的
+用户配置 Allow 策略。然后从该应用的 `Additional settings` 复制 Application Audience（AUD）
+Tag，写入 `.prod.secrets` 的 `POLICY_AUD`。
+
+前端会以 `credentials: "include"` 请求 API。首次使用时若浏览器尚未保存 API 域名的 Access
+Cookie，页面会提供一个新标签页授权入口；授权完成后返回面板重试即可。
+
+Cloudflare Dashboard 中 `Settings > Build` 下的变量仅供构建过程使用。`CF_ACCOUNT_ID`、
+`CF_API_TOKEN` 和 `POLICY_AUD` 必须配置在 `Settings > Variables & Secrets` 中，才能作为
+Worker 运行时变量被代码和 Wrangler 识别。`TEAM_DOMAIN` 是非敏感配置，保存在
+`wrangler.jsonc`。
 
 Cloudflare Workers Builds 应使用以下设置：
 
@@ -111,6 +122,7 @@ pnpm build
 pnpm worker:dry-run
 ```
 
-测试覆盖鉴权、CORS、UTC 日/月窗口、额度状态、R2 操作分类、存储快照合并、REST 分页、部分数据源失败以及聚合摘要。
+测试覆盖 Access JWT 鉴权、CORS、UTC 日/月窗口、额度状态、R2 操作分类、存储快照合并、
+REST 分页、部分数据源失败以及聚合摘要。
 
 额度常量核对日期为 `2026-07-21`。Cloudflare 产品定价会变化，部署前请重新核对官方文档。

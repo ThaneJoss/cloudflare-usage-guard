@@ -13,10 +13,11 @@
     }
   ],
   "secrets": {
-    "required": ["CF_ACCOUNT_ID", "CF_API_TOKEN", "DASHBOARD_TOKEN"]
+    "required": ["CF_ACCOUNT_ID", "CF_API_TOKEN", "POLICY_AUD"]
   },
   "vars": {
-    "ALLOWED_ORIGINS": "https://cloudflare.thanejoss.com"
+    "ALLOWED_ORIGINS": "https://cloudflare.thanejoss.com",
+    "TEAM_DOMAIN": "https://thanejoss.cloudflareaccess.com"
   },
   "observability": {
     "enabled": true,

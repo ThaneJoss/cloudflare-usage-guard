@@ -1,36 +1,56 @@
-import { describe, expect, it } from "vitest";
+import {
+  createLocalJWKSet,
+  exportJWK,
+  generateKeyPair,
+  SignJWT,
+} from "jose";
+import { beforeAll, describe, expect, it } from "vitest";
 
-import { verifyDashboardToken } from "../worker/src/auth";
+import { verifyAccessJwt } from "../worker/src/auth";
 
-function request(authorization?: string): Request {
-  return new Request(
-    "https://usage.example/v1/usage",
-    authorization ? { headers: { Authorization: authorization } } : undefined,
-  );
+const ISSUER = "https://example.cloudflareaccess.com";
+const AUDIENCE = "usage-guard-audience";
+let validToken: string;
+let jwks: ReturnType<typeof createLocalJWKSet>;
+
+beforeAll(async () => {
+  const { privateKey, publicKey } = await generateKeyPair("RS256");
+  const publicJwk = await exportJWK(publicKey);
+  publicJwk.kid = "test-key";
+  jwks = createLocalJWKSet({ keys: [publicJwk] });
+  validToken = await new SignJWT({ email: "owner@example.com" })
+    .setProtectedHeader({ alg: "RS256", kid: "test-key" })
+    .setIssuer(ISSUER)
+    .setAudience(AUDIENCE)
+    .setIssuedAt()
+    .setExpirationTime("5m")
+    .sign(privateKey);
+});
+
+function request(token?: string): Request {
+  return token
+    ? new Request("https://usage.example/v1/usage", {
+        headers: { "Cf-Access-Jwt-Assertion": token },
+      })
+    : new Request("https://usage.example/v1/usage");
 }
 
-describe("dashboard token authentication", () => {
-  it("accepts a matching bearer token", async () => {
+describe("Cloudflare Access JWT authentication", () => {
+  it("accepts a correctly signed token for the configured application", async () => {
     await expect(
-      verifyDashboardToken(request("Bearer correct horse"), "correct horse"),
-    ).resolves.toBe(true);
-  });
-
-  it("treats the HTTP auth scheme case-insensitively", async () => {
-    await expect(
-      verifyDashboardToken(request("bearer secret"), "secret"),
+      verifyAccessJwt(request(validToken), `${ISSUER}/`, AUDIENCE, jwks),
     ).resolves.toBe(true);
   });
 
   it.each([
-    [undefined, "secret"],
-    ["Basic secret", "secret"],
-    ["Bearer", "secret"],
-    ["Bearer wrong", "secret"],
-    ["Bearer secret", ""],
-  ])("rejects invalid credentials", async (authorization, expected) => {
+    ["missing token", undefined, ISSUER, AUDIENCE],
+    ["wrong issuer", validToken, "https://other.cloudflareaccess.com", AUDIENCE],
+    ["wrong audience", validToken, ISSUER, "other-audience"],
+    ["missing issuer", validToken, "", AUDIENCE],
+    ["missing audience", validToken, ISSUER, ""],
+  ])("rejects %s", async (_label, token, issuer, audience) => {
     await expect(
-      verifyDashboardToken(request(authorization), expected),
+      verifyAccessJwt(request(token), issuer, audience, jwks),
     ).resolves.toBe(false);
   });
 });

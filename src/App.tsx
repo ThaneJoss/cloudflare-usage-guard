@@ -11,10 +11,8 @@ import {
   ExternalLink,
   Gauge,
   HardDrive,
-  KeyRound,
   Layers3,
   Lock,
-  LogOut,
   MessageSquareMore,
   RefreshCw,
   Rocket,
@@ -45,7 +43,6 @@ import type {
 } from "../shared/usage";
 import { createDemoPayload } from "./demo";
 
-const TOKEN_KEY = "cf-usage-dashboard-token";
 const ENDPOINT_KEY = "cf-usage-dashboard-endpoint";
 const configuredEndpoint = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
 
@@ -53,7 +50,6 @@ type Filter = "all" | "attention" | "hard-stop" | "paid-overage" | "unavailable"
 
 export function App() {
   const isDemo = new URLSearchParams(window.location.search).get("demo") === "1";
-  const [token, setToken] = useState(() => sessionStorage.getItem(TOKEN_KEY) ?? "");
   const [endpoint, setEndpoint] = useState(
     () => localStorage.getItem(ENDPOINT_KEY) ?? configuredEndpoint,
   );
@@ -65,20 +61,23 @@ export function App() {
   const [filter, setFilter] = useState<Filter>("all");
 
   const loadUsage = useCallback(
-    async (nextToken = token, nextEndpoint = endpoint) => {
+    async (nextEndpoint = endpoint) => {
       if (isDemo) {
         setData(createDemoPayload());
         setError(null);
         return;
       }
       const normalizedEndpoint = normalizeEndpoint(nextEndpoint);
-      if (!nextToken || !normalizedEndpoint) return;
+      if (!normalizedEndpoint) {
+        setError("请填写 Worker API 地址");
+        return;
+      }
 
       setLoading(true);
       setError(null);
       try {
         const response = await fetch(`${normalizedEndpoint}/v1/usage`, {
-          headers: { Authorization: `Bearer ${nextToken}` },
+          credentials: "include",
           signal: AbortSignal.timeout(25_000),
         });
         const body: unknown = await response.json().catch(() => null);
@@ -91,7 +90,6 @@ export function App() {
         }
         if (!isUsagePayload(body)) throw new Error("API 返回了无法识别的数据");
         setData(body);
-        sessionStorage.setItem(TOKEN_KEY, nextToken);
         localStorage.setItem(ENDPOINT_KEY, normalizedEndpoint);
         setEndpoint(normalizedEndpoint);
       } catch (caught) {
@@ -100,33 +98,24 @@ export function App() {
         setLoading(false);
       }
     },
-    [endpoint, isDemo, token],
+    [endpoint, isDemo],
   );
 
   useEffect(() => {
-    if (!isDemo && token && endpoint && !data) void loadUsage();
-  }, [data, endpoint, isDemo, loadUsage, token]);
+    if (!isDemo && endpoint && !data) void loadUsage();
+  }, [data, endpoint, isDemo, loadUsage]);
 
   function handleConnect(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    void loadUsage(token, endpoint);
-  }
-
-  function handleLock() {
-    sessionStorage.removeItem(TOKEN_KEY);
-    setToken("");
-    setData(null);
-    setError(null);
+    void loadUsage(endpoint);
   }
 
   if (!data) {
     return (
-      <LoginScreen
-        token={token}
+      <AccessScreen
         endpoint={endpoint}
         loading={loading}
         error={error}
-        onTokenChange={setToken}
         onEndpointChange={setEndpoint}
         onSubmit={handleConnect}
       />
@@ -139,7 +128,6 @@ export function App() {
         demo={isDemo}
         loading={loading}
         onRefresh={() => void loadUsage()}
-        onLock={handleLock}
       />
       <main>
         <Hero data={data} demo={isDemo} />
@@ -164,17 +152,15 @@ export function App() {
   );
 }
 
-interface LoginScreenProps {
-  token: string;
+interface AccessScreenProps {
   endpoint: string;
   loading: boolean;
   error: string | null;
-  onTokenChange: (value: string) => void;
   onEndpointChange: (value: string) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }
 
-function LoginScreen(props: LoginScreenProps) {
+function AccessScreen(props: AccessScreenProps) {
   return (
     <main className="login-page">
       <div className="login-atmosphere" aria-hidden="true" />
@@ -183,18 +169,18 @@ function LoginScreen(props: LoginScreenProps) {
         <div className="hero-kicker"><Sparkles size={15} /> Free-tier control room</div>
         <h1>看见额度，<br />赶在停服或计费之前。</h1>
         <p>
-          一个只读的 Cloudflare 用量面板。密钥留在 Worker，浏览器只使用独立的 dashboard token。
+          一个只读的 Cloudflare 用量面板。密钥留在 Worker，访问权限交由 Cloudflare Access 管理。
         </p>
         <a className="demo-link" href="?demo=1">
           先查看演示数据 <ArrowUpRight size={16} />
         </a>
       </section>
       <section className="login-card" aria-labelledby="connect-heading">
-        <div className="login-card-icon"><KeyRound size={22} /></div>
+        <div className="login-card-icon"><ShieldCheck size={22} /></div>
         <div>
-          <span className="section-index">01 / CONNECT</span>
-          <h2 id="connect-heading">连接你的 Usage Worker</h2>
-          <p>口令仅写入 sessionStorage，关闭标签页后自动清除。</p>
+          <span className="section-index">01 / ACCESS</span>
+          <h2 id="connect-heading">通过 Cloudflare Access 连接</h2>
+          <p>浏览器不再保存 Dashboard 密码，Worker 会验证 Access 签发的 JWT。</p>
         </div>
         <form onSubmit={props.onSubmit}>
           <label>
@@ -208,25 +194,24 @@ function LoginScreen(props: LoginScreenProps) {
               autoComplete="url"
             />
           </label>
-          <label>
-            <span>Dashboard token</span>
-            <input
-              type="password"
-              value={props.token}
-              onChange={(event) => props.onTokenChange(event.target.value)}
-              placeholder="由 wrangler secret put 设置"
-              required
-              autoComplete="current-password"
-            />
-          </label>
           {props.error ? <div className="form-error" role="alert">{props.error}</div> : null}
+          {props.error && normalizeEndpoint(props.endpoint) ? (
+            <a
+              className="demo-link"
+              href={`${normalizeEndpoint(props.endpoint)}/v1/usage`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              先在新标签页完成 API Access 授权 <ExternalLink size={16} />
+            </a>
+          ) : null}
           <button className="primary-button" type="submit" disabled={props.loading}>
-            {props.loading ? <RefreshCw className="spin" size={18} /> : <Lock size={18} />}
-            {props.loading ? "正在读取…" : "安全连接"}
+            {props.loading ? <RefreshCw className="spin" size={18} /> : <ShieldCheck size={18} />}
+            {props.loading ? "正在验证 Access…" : "读取用量"}
           </button>
         </form>
         <div className="trust-row">
-          <span><ShieldCheck size={15} /> Cloudflare token 不进入浏览器</span>
+          <span><ShieldCheck size={15} /> Access JWT 由 Worker 验证</span>
           <span><Check size={15} /> 只读 API</span>
         </div>
       </section>
@@ -238,12 +223,10 @@ function Header({
   demo,
   loading,
   onRefresh,
-  onLock,
 }: {
   demo: boolean;
   loading: boolean;
   onRefresh: () => void;
-  onLock: () => void;
 }) {
   return (
     <header className="topbar">
@@ -255,11 +238,6 @@ function Header({
         <button className="icon-button" type="button" onClick={onRefresh} disabled={loading} aria-label="刷新用量">
           <RefreshCw className={loading ? "spin" : ""} size={18} />
         </button>
-        {!demo ? (
-          <button className="icon-button" type="button" onClick={onLock} aria-label="锁定面板">
-            <LogOut size={18} />
-          </button>
-        ) : null}
       </div>
     </header>
   );
