@@ -133,7 +133,7 @@ describe("CloudflareClient", () => {
     });
     expect(
       fetcher.mock.calls.some(([input]) =>
-        String(input).includes("projects?page=2&per_page=100"),
+        String(input).includes("projects?page=2&per_page=10"),
       ),
     ).toBe(true);
     expect(
@@ -143,9 +143,37 @@ describe("CloudflareClient", () => {
     ).toBe(false);
     expect(
       fetcher.mock.calls.some(([input]) =>
-        String(input).includes("alpha/deployments?page=2&per_page=100"),
+        String(input).includes("alpha/deployments?page=2&per_page=10"),
       ),
     ).toBe(true);
+  });
+
+  it("accepts GraphQL success responses with a null errors field", async () => {
+    const fetcher = vi.fn(async () =>
+      json({
+        data: {
+          viewer: {
+            accounts: [
+              {
+                workersInvocationsAdaptive: [],
+              },
+            ],
+          },
+        },
+        errors: null,
+      }),
+    );
+    const client = new CloudflareClient({
+      accountId: "account-id",
+      apiToken: "api-token",
+      fetcher: fetcher as typeof fetch,
+    });
+
+    await expect(client.getWorkersUsage(WINDOWS)).resolves.toEqual({
+      requests: 0,
+      errors: 0,
+      scripts: 0,
+    });
   });
 
   it("returns a lower-bound Pages count when one project cannot be read", async () => {
