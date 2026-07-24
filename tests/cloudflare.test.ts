@@ -25,6 +25,43 @@ function restResult(
 }
 
 describe("CloudflareClient", () => {
+  it("preserves the global receiver for fetch-compatible functions", async () => {
+    let receiver: unknown;
+    const fetcher = vi.fn(function (this: unknown) {
+      receiver = this;
+      return Promise.resolve(
+        json({
+          data: {
+            viewer: {
+              accounts: [
+                {
+                  workersInvocationsAdaptive: [
+                    {
+                      sum: { requests: 12, errors: 1 },
+                      dimensions: { scriptName: "usage-api" },
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+        }),
+      );
+    });
+    const client = new CloudflareClient({
+      accountId: "account-id",
+      apiToken: "api-token",
+      fetcher: fetcher as typeof fetch,
+    });
+
+    await expect(client.getWorkersUsage(WINDOWS)).resolves.toEqual({
+      requests: 12,
+      errors: 1,
+      scripts: 1,
+    });
+    expect(receiver).toBe(globalThis);
+  });
+
   it("paginates Pages projects and deployments without marking complete data partial", async () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL) => {
       const url = new URL(String(input));

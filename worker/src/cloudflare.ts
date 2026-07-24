@@ -210,7 +210,7 @@ export class CloudflareClient {
   constructor(options: CloudflareClientOptions) {
     this.#accountId = options.accountId;
     this.#apiToken = options.apiToken;
-    this.#fetcher = options.fetcher ?? fetch;
+    this.#fetcher = (options.fetcher ?? fetch).bind(globalThis);
   }
 
   async getWorkersUsage(windows: TimeWindows): Promise<WorkersUsageRaw> {
