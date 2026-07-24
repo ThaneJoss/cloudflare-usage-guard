@@ -1,4 +1,4 @@
-import { verifyDashboardToken } from "./auth";
+import { verifyAccessJwt } from "./auth";
 import { collectUsage } from "./usage";
 
 const SECURITY_HEADERS = {
@@ -41,8 +41,12 @@ export default {
       return jsonResponse({ error: "Origin 不在允许列表" }, 403);
     }
 
-    if (!(await verifyDashboardToken(request, env.DASHBOARD_TOKEN))) {
-      return jsonResponse({ error: "Dashboard token 无效" }, 401, allowedOrigin);
+    if (!(await verifyAccessJwt(request, env.TEAM_DOMAIN, env.POLICY_AUD))) {
+      return jsonResponse(
+        { error: "Cloudflare Access 身份无效" },
+        403,
+        allowedOrigin,
+      );
     }
 
     try {
@@ -77,7 +81,8 @@ function resolveAllowedOrigin(
 function corsHeaders(origin: string): Headers {
   const headers = new Headers(SECURITY_HEADERS);
   headers.set("Access-Control-Allow-Origin", origin);
-  headers.set("Access-Control-Allow-Headers", "Authorization, Content-Type");
+  headers.set("Access-Control-Allow-Credentials", "true");
+  headers.set("Access-Control-Allow-Headers", "Content-Type");
   headers.set("Access-Control-Allow-Methods", "GET, OPTIONS");
   headers.set("Access-Control-Max-Age", "86400");
   headers.set("Vary", "Origin");
