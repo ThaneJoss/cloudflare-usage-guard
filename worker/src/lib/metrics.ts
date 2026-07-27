@@ -6,7 +6,6 @@ import type {
   UsageStatus,
 } from "../../../shared/usage";
 
-export const QUOTA_CATALOG_AS_OF = "2026-07-21";
 export const DECIMAL_GB = 1_000_000_000;
 
 export interface TimeWindows {

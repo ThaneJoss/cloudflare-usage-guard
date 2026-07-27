@@ -1,6 +1,5 @@
 import type {
   BillingUsage,
-  CoverageGap,
   ProductUsage,
   SourceHealth,
   UsageMetric,
@@ -8,6 +7,13 @@ import type {
   UsageStatus,
   UsageSummary,
 } from "../../shared/usage";
+import {
+  COVERAGE_GAPS,
+  getProductMetadata,
+  PRODUCT_CATALOG,
+  QUOTA_CATALOG_AS_OF,
+  type ProductId,
+} from "../../shared/quota-catalog";
 import {
   CloudflareClient,
   type D1UsageRaw,
@@ -20,9 +26,7 @@ import {
 } from "./cloudflare";
 import {
   createMetric,
-  DECIMAL_GB,
   getTimeWindows,
-  QUOTA_CATALOG_AS_OF,
   safeSum,
   type TimeWindows,
 } from "./lib/metrics";
@@ -67,40 +71,42 @@ export async function collectUsage(
       apiToken: env.CF_API_TOKEN,
     });
 
-  const productResults = await Promise.all([
-    loadProduct(
-      WORKERS_DEFINITION,
-      () => client.getWorkersUsage(windows),
-      (usage) => buildWorkersProduct(usage, windows),
-    ),
-    loadProduct(
-      KV_DEFINITION,
-      () => client.getKvUsage(windows),
-      (usage) => buildKvProduct(usage, windows),
-    ),
-    loadProduct(
-      D1_DEFINITION,
-      () => client.getD1Usage(windows),
-      (usage) => buildD1Product(usage, windows),
-    ),
-    loadProduct(
-      R2_DEFINITION,
-      () => client.getR2Usage(windows),
-      (usage) => buildR2Product(usage, windows),
-    ),
-    loadProduct(
-      QUEUES_DEFINITION,
-      () => client.getQueueUsage(windows),
-      (usage) => buildQueuesProduct(usage, windows),
-    ),
-    loadProduct(
-      PAGES_DEFINITION,
-      () => client.getPagesUsage(windows),
-      (usage) => buildPagesProduct(usage, windows),
-    ),
+  const [productResults, billingResult] = await Promise.all([
+    Promise.all([
+      loadProduct(
+        WORKERS_DEFINITION,
+        () => client.getWorkersUsage(windows),
+        (usage) => buildWorkersProduct(usage, windows),
+      ),
+      loadProduct(
+        KV_DEFINITION,
+        () => client.getKvUsage(windows),
+        (usage) => buildKvProduct(usage, windows),
+      ),
+      loadProduct(
+        D1_DEFINITION,
+        () => client.getD1Usage(windows),
+        (usage) => buildD1Product(usage, windows),
+      ),
+      loadProduct(
+        R2_DEFINITION,
+        () => client.getR2Usage(windows),
+        (usage) => buildR2Product(usage, windows),
+      ),
+      loadProduct(
+        QUEUES_DEFINITION,
+        () => client.getQueueUsage(windows),
+        (usage) => buildQueuesProduct(usage, windows),
+      ),
+      loadProduct(
+        PAGES_DEFINITION,
+        () => client.getPagesUsage(windows),
+        (usage) => buildPagesProduct(usage, windows),
+      ),
+    ]),
+    loadBilling(() => client.getPaygoUsage()),
   ]);
 
-  const billingResult = await loadBilling(() => client.getPaygoUsage());
   const products = productResults.map((result) => result.product);
   const sources = [
     ...productResults.map((result) => result.source),
@@ -115,7 +121,7 @@ export async function collectUsage(
     products,
     billing: billingResult.billing,
     sources,
-    coverageGaps: COVERAGE_GAPS,
+    coverageGaps: [...COVERAGE_GAPS],
     disclaimer:
       "额度卡使用 Cloudflare Analytics/REST API 的运行数据估算，不等同于账单；PayGo 表（若账户和权限支持）才是可计费用量来源。所有日/月边界均按 UTC。",
   };
@@ -126,6 +132,7 @@ async function loadProduct<T>(
   load: () => Promise<T>,
   build: (value: T) => ProductUsage,
 ): Promise<ProductLoadResult> {
+  const startedAt = Date.now();
   try {
     const product = build(await load());
     return {
@@ -138,6 +145,7 @@ async function loadProduct<T>(
       },
     };
   } catch (error) {
+    logSourceFailure(definition.id, error, Date.now() - startedAt);
     const message = publicErrorMessage(error);
     return {
       product: {
@@ -167,7 +175,7 @@ function buildWorkersProduct(
       id: "workers-requests",
       label: "请求",
       used: usage.requests,
-      limit: 100_000,
+      limit: PRODUCT_CATALOG.workers.metrics.requests.limit,
       unit: "requests",
       period: "day",
       resetAt: windows.dayEnd,
@@ -181,15 +189,39 @@ function buildWorkersProduct(
 
 function buildKvProduct(usage: KvUsageRaw, windows: TimeWindows): ProductUsage {
   return availableProduct(KV_DEFINITION, [
-    dailyMetric("kv-reads", "读取", usage.reads, 100_000, windows),
-    dailyMetric("kv-writes", "写入", usage.writes, 1_000, windows),
-    dailyMetric("kv-deletes", "删除", usage.deletes, 1_000, windows),
-    dailyMetric("kv-lists", "列表", usage.lists, 1_000, windows),
+    dailyMetric(
+      "kv-reads",
+      "读取",
+      usage.reads,
+      PRODUCT_CATALOG.kv.metrics.reads.limit,
+      windows,
+    ),
+    dailyMetric(
+      "kv-writes",
+      "写入",
+      usage.writes,
+      PRODUCT_CATALOG.kv.metrics.writes.limit,
+      windows,
+    ),
+    dailyMetric(
+      "kv-deletes",
+      "删除",
+      usage.deletes,
+      PRODUCT_CATALOG.kv.metrics.deletes.limit,
+      windows,
+    ),
+    dailyMetric(
+      "kv-lists",
+      "列表",
+      usage.lists,
+      PRODUCT_CATALOG.kv.metrics.lists.limit,
+      windows,
+    ),
     createMetric({
       id: "kv-storage",
       label: "存储",
       used: usage.storageBytes,
-      limit: DECIMAL_GB,
+      limit: PRODUCT_CATALOG.kv.metrics.storage.limit,
       unit: "bytes",
       period: "current",
       resetAt: null,
@@ -203,19 +235,25 @@ function buildKvProduct(usage: KvUsageRaw, windows: TimeWindows): ProductUsage {
 
 function buildD1Product(usage: D1UsageRaw, windows: TimeWindows): ProductUsage {
   return availableProduct(D1_DEFINITION, [
-    dailyRowsMetric("d1-rows-read", "读取行数", usage.rowsRead, 5_000_000, windows),
+    dailyRowsMetric(
+      "d1-rows-read",
+      "读取行数",
+      usage.rowsRead,
+      PRODUCT_CATALOG.d1.metrics.rowsRead.limit,
+      windows,
+    ),
     dailyRowsMetric(
       "d1-rows-written",
       "写入行数",
       usage.rowsWritten,
-      100_000,
+      PRODUCT_CATALOG.d1.metrics.rowsWritten.limit,
       windows,
     ),
     createMetric({
       id: "d1-storage",
       label: "账户存储",
       used: usage.storageBytes,
-      limit: 5 * DECIMAL_GB,
+      limit: PRODUCT_CATALOG.d1.metrics.storage.limit,
       unit: "bytes",
       period: "current",
       resetAt: null,
@@ -237,13 +275,25 @@ function buildR2Product(usage: R2UsageRaw, windows: TimeWindows): ProductUsage {
   }
 
   return availableProduct(R2_DEFINITION, [
-    monthlyMetric("r2-class-a", "Class A", usage.classA, 1_000_000, windows),
-    monthlyMetric("r2-class-b", "Class B", usage.classB, 10_000_000, windows),
+    monthlyMetric(
+      "r2-class-a",
+      "Class A",
+      usage.classA,
+      PRODUCT_CATALOG.r2.metrics.classA.limit,
+      windows,
+    ),
+    monthlyMetric(
+      "r2-class-b",
+      "Class B",
+      usage.classB,
+      PRODUCT_CATALOG.r2.metrics.classB.limit,
+      windows,
+    ),
     createMetric({
       id: "r2-storage",
       label: "当前存储快照",
       used: usage.storageBytes,
-      limit: 10 * DECIMAL_GB,
+      limit: PRODUCT_CATALOG.r2.metrics.storage.limit,
       unit: "bytes",
       period: "current",
       resetAt: windows.monthEnd,
@@ -262,7 +312,7 @@ function buildQueuesProduct(
       id: "queues-operations",
       label: "计费操作",
       used: usage.billableOperations,
-      limit: 10_000,
+      limit: PRODUCT_CATALOG.queues.metrics.operations.limit,
       unit: "operations",
       period: "day",
       resetAt: windows.dayEnd,
@@ -281,7 +331,7 @@ function buildPagesProduct(
         id: "pages-builds",
         label: "构建次数",
         used: usage.builds,
-        limit: 500,
+        limit: PRODUCT_CATALOG.pages.metrics.builds.limit,
         unit: "builds",
         period: "month",
         resetAt: windows.monthEnd,
@@ -300,6 +350,7 @@ async function loadBilling(load: () => Promise<PaygoUsageRawRow[]>): Promise<{
   billing: BillingUsage;
   source: SourceHealth;
 }> {
+  const startedAt = Date.now();
   try {
     const rawRows = await load();
     const rows = rawRows.map((row) => ({
@@ -333,6 +384,7 @@ async function loadBilling(load: () => Promise<PaygoUsageRawRow[]>): Promise<{
       },
     };
   } catch (error) {
+    logSourceFailure("billing", error, Date.now() - startedAt);
     const message = publicErrorMessage(error);
     return {
       billing: {
@@ -485,141 +537,56 @@ function publicErrorMessage(error: unknown): string {
   return "数据源发生未知错误";
 }
 
+function logSourceFailure(
+  source: string,
+  error: unknown,
+  durationMs: number,
+): void {
+  console.warn(
+    JSON.stringify({
+      event: "cloudflare_source_failed",
+      source,
+      duration_ms: durationMs,
+      error_name: error instanceof Error ? error.name : "UnknownError",
+    }),
+  );
+}
+
 function minString(values: Array<string | null>): string | null {
   const present = values.filter((value): value is string => value !== null);
-  return present.length ? present.sort()[0] ?? null : null;
+  return present.length ? present.toSorted()[0] ?? null : null;
 }
 
 function maxString(values: Array<string | null>): string | null {
   const present = values.filter((value): value is string => value !== null);
-  return present.length ? present.sort().at(-1) ?? null : null;
+  return present.length ? present.toSorted().at(-1) ?? null : null;
 }
 
 function formatInteger(value: number): string {
   return new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 0 }).format(value);
 }
 
-const WORKERS_DEFINITION: ProductDefinition = {
-  id: "workers",
-  name: "Workers",
-  eyebrow: "边缘计算",
-  description: "HTTP 请求的每日免费额度。Cron 触发与部分内部调用可能采用不同计量规则。",
-  behavior: "plan-dependent",
-  behaviorLabel: "Free 停止 · Paid 超额计费",
-  documentationUrl: "https://developers.cloudflare.com/workers/platform/pricing/",
-  sourceLabel: "GraphQL · Workers Analytics",
-  unavailableMetrics: () => [
-    unavailableMetric("workers-requests", "请求", 100_000, "requests", "day"),
-  ],
-};
+const WORKERS_DEFINITION = createProductDefinition("workers");
+const KV_DEFINITION = createProductDefinition("kv");
+const D1_DEFINITION = createProductDefinition("d1");
+const R2_DEFINITION = createProductDefinition("r2");
+const QUEUES_DEFINITION = createProductDefinition("queues");
+const PAGES_DEFINITION = createProductDefinition("pages");
 
-const KV_DEFINITION: ProductDefinition = {
-  id: "kv",
-  name: "Workers KV",
-  eyebrow: "键值存储",
-  description: "读取、写入、删除和列表操作按 UTC 日独立计额；存储是账户总量。",
-  behavior: "plan-dependent",
-  behaviorLabel: "Free 操作失败 · Paid 超额计费",
-  documentationUrl: "https://developers.cloudflare.com/kv/platform/pricing/",
-  sourceLabel: "GraphQL · KV Analytics",
-  unavailableMetrics: () => [
-    unavailableMetric("kv-reads", "读取", 100_000, "operations", "day"),
-    unavailableMetric("kv-writes", "写入", 1_000, "operations", "day"),
-    unavailableMetric("kv-deletes", "删除", 1_000, "operations", "day"),
-    unavailableMetric("kv-lists", "列表", 1_000, "operations", "day"),
-    unavailableMetric("kv-storage", "存储", DECIMAL_GB, "bytes", "current"),
-  ],
-};
-
-const D1_DEFINITION: ProductDefinition = {
-  id: "d1",
-  name: "D1",
-  eyebrow: "SQL 数据库",
-  description: "行读取、行写入按 UTC 日计额；账户存储上限按所有数据库合计。",
-  behavior: "plan-dependent",
-  behaviorLabel: "Free 查询失败 · Paid 超额计费",
-  documentationUrl: "https://developers.cloudflare.com/d1/platform/pricing/",
-  sourceLabel: "GraphQL · D1 Analytics",
-  unavailableMetrics: () => [
-    unavailableMetric("d1-rows-read", "读取行数", 5_000_000, "rows", "day"),
-    unavailableMetric("d1-rows-written", "写入行数", 100_000, "rows", "day"),
-    unavailableMetric("d1-storage", "账户存储", 5 * DECIMAL_GB, "bytes", "current"),
-  ],
-};
-
-const R2_DEFINITION: ProductDefinition = {
-  id: "r2",
-  name: "R2",
-  eyebrow: "对象存储",
-  description: "免费层包含月度 Class A、Class B 与 GB-month 存储额度；网络出口免费。",
-  behavior: "paid-overage",
-  behaviorLabel: "超过免费层后计费",
-  documentationUrl: "https://developers.cloudflare.com/r2/pricing/",
-  sourceLabel: "GraphQL · R2 Analytics",
-  unavailableMetrics: () => [
-    unavailableMetric("r2-class-a", "Class A", 1_000_000, "operations", "month"),
-    unavailableMetric("r2-class-b", "Class B", 10_000_000, "operations", "month"),
-    unavailableMetric("r2-storage", "当前存储快照", 10 * DECIMAL_GB, "bytes", "current"),
-  ],
-};
-
-const QUEUES_DEFINITION: ProductDefinition = {
-  id: "queues",
-  name: "Queues",
-  eyebrow: "消息队列",
-  description: "发送、投递与确认/重试均可能形成计费操作，免费计划按 UTC 日计额。",
-  behavior: "plan-dependent",
-  behaviorLabel: "Free 停止 · Paid 超额计费",
-  documentationUrl: "https://developers.cloudflare.com/queues/platform/pricing/",
-  sourceLabel: "GraphQL · Queues Analytics",
-  unavailableMetrics: () => [
-    unavailableMetric("queues-operations", "计费操作", 10_000, "operations", "day"),
-  ],
-};
-
-const PAGES_DEFINITION: ProductDefinition = {
-  id: "pages",
-  name: "Pages",
-  eyebrow: "前端部署",
-  description: "免费计划每月最多 500 次构建；静态资源请求不计入 Workers 请求额度。",
-  behavior: "hard-stop",
-  behaviorLabel: "达到上限后构建停止",
-  documentationUrl: "https://developers.cloudflare.com/pages/platform/limits/",
-  sourceLabel: "REST · Pages Deployments",
-  unavailableMetrics: () => [
-    unavailableMetric("pages-builds", "构建次数", 500, "builds", "month"),
-  ],
-};
-
-const COVERAGE_GAPS: CoverageGap[] = [
-  {
-    name: "Workers AI",
-    allowance: "10,000 neurons / UTC 日",
-    reason: "当前版本未接入按账户汇总的稳定公开用量接口。",
-    documentationUrl: "https://developers.cloudflare.com/workers-ai/platform/pricing/",
-  },
-  {
-    name: "Images",
-    allowance: "5,000 unique transformations / 月",
-    reason: "转换计量口径需要结合 Images 专用分析数据，暂不混入统一估算。",
-    documentationUrl: "https://developers.cloudflare.com/images/pricing/",
-  },
-  {
-    name: "Vectorize",
-    allowance: "30M queried + 5M stored dimensions / 月",
-    reason: "当前版本未接入 Vectorize 的账户级用量聚合。",
-    documentationUrl: "https://developers.cloudflare.com/vectorize/platform/pricing/",
-  },
-  {
-    name: "Browser Rendering",
-    allowance: "10 browser minutes / UTC 日",
-    reason: "当前版本未接入 Browser Rendering 用量接口。",
-    documentationUrl: "https://developers.cloudflare.com/browser-rendering/platform/pricing/",
-  },
-  {
-    name: "Workflows",
-    allowance: "3,000 steps / UTC 日",
-    reason: "产品计费仍在演进，当前版本只展示覆盖缺口以避免误报。",
-    documentationUrl: "https://developers.cloudflare.com/workflows/platform/pricing/",
-  },
-];
+function createProductDefinition(id: ProductId): ProductDefinition {
+  const metadata = getProductMetadata(id);
+  const metrics = Object.values(PRODUCT_CATALOG[id].metrics);
+  return {
+    ...metadata,
+    unavailableMetrics: () =>
+      metrics.map((metric) =>
+        unavailableMetric(
+          metric.id,
+          metric.label,
+          metric.limit,
+          metric.unit,
+          metric.period,
+        ),
+      ),
+  };
+}

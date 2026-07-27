@@ -1,0 +1,67 @@
+:root {
+  color: #f4f7f8;
+  background: #070a0d;
+  font-family:
+    Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  color-scheme: dark;
+
+  --font-display:
+    Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-mono:
+    "SFMono-Regular", Consolas, "Liberation Mono", "Roboto Mono", monospace;
+
+  --bg: #070a0d;
+  --bg-elevated: #0b1015;
+  --surface: #0e141a;
+  --surface-raised: #121a21;
+  --surface-soft: #151e26;
+  --line: #23303a;
+  --line-strong: #34434f;
+  --text: #f4f7f8;
+  --text-soft: #c1ccd2;
+  --muted: #8d9ba4;
+  --faint: #788791;
+  --orange: #ff7a1a;
+  --orange-bright: #ff9a50;
+  --orange-soft: #ff7a1a1c;
+  --cyan: #5de4ff;
+  --cyan-soft: #5de4ff16;
+  --green: #4ce0a3;
+  --green-soft: #4ce0a315;
+  --amber: #f6c453;
+  --amber-soft: #f6c45317;
+  --red: #ff6f78;
+  --red-soft: #ff6f7817;
+  --shadow-sm: 0 12px 36px #00000026;
+  --shadow-lg: 0 30px 90px #0000005c;
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --content-width: 1280px;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes breathe {
+  0%, 100% { opacity: 0.42; transform: scale(0.94); }
+  50% { opacity: 1; transform: scale(1.04); }
+}
+
+@keyframes scan {
+  from { transform: translateY(-120%); }
+  to { transform: translateY(420%); }
+}
+
+@keyframes load-shift {
+  0% { transform: scaleX(0.08); transform-origin: left; }
+  48% { transform: scaleX(0.72); transform-origin: left; }
+  52% { transform: scaleX(0.72); transform-origin: right; }
+  100% { transform: scaleX(0.08); transform-origin: right; }
+}

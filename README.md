@@ -1,36 +1,77 @@
 # Cloudflare Usage Guard
 
-一个前端部署在 Vercel、后端部署在 Cloudflare Workers 的只读资源用量面板，重点展示免费额度达到上限后会停止服务或开始计费的产品。
+面向 Cloudflare 账户的只读边缘资源指挥台。它把免费额度、数据源健康与可选的 PayGo
+明细整理成风险优先的单页控制台，在额度变成停服或费用前给出清晰信号。
 
-当前覆盖：
+生产架构保持两条严格分离的交付链：
 
-- Workers 请求
-- Workers KV 读、写、删除、列表与存储
-- D1 行读取、行写入与存储
-- R2 Class A、Class B 与当前存储快照
-- Queues 计费操作
-- Pages 月度构建次数
-- PayGo 账期明细（可选）
+```text
+浏览器 ── Cloudflare Access ── Vercel 静态前端
+   │
+   └──── Cloudflare Access JWT ── API Worker ── Cloudflare 只读 API
+```
 
-采集器会并行读取各产品，并把失败限制在对应卡片内。Pages 项目、部署记录与 PayGo 明细会自动分页；Pages 项目以受控并发读取，避免账户项目较多时瞬间触发 API 限流。若个别 Pages 项目读取失败，面板会明确标记为“下限数据”，而不是把不完整计数显示成精确值。
+- 前端：React 19、TypeScript 7、Vite 8，部署到
+  `https://cloudflare.thanejoss.com`。
+- 后端：Cloudflare Worker，部署到
+  `https://api.cloudflare.thanejoss.com`。
+- 运行时契约：API Token 只存在于 Worker Secret；浏览器仅保存 API Origin。
+- 数据契约：Zod Mini 在浏览器运行时校验完整响应，避免前后端版本漂移静默污染界面。
+- 工程门禁：Oxlint、严格 TypeScript、Vitest、Testing Library、workerd
+  运行时测试、产物预算和 Wrangler dry-run。
 
-## 架构与安全
+## 产品能力
 
-- `dist/` 由 Vercel 托管，生产地址为 `https://cloudflare.thanejoss.com`。
-- `worker/` 是独立的只读聚合 API，由根目录 `wrangler.jsonc` 部署到 Cloudflare Workers。
-- API Worker 只绑定 `https://api.cloudflare.thanejoss.com`，不携带或托管前端静态资源。
-- Cloudflare API Token 只作为 Worker Secret 保存，永远不会发送到浏览器。
-- Cloudflare Access 直接保护 Worker；Worker 还会校验 `Cf-Access-Jwt-Assertion` 的签名、签发方和应用 AUD。
-- 浏览器使用 Access Cookie 访问 API，不保存独立的 Dashboard 密码。
-- GraphQL 卡片是运行分析估算，不等同于账单；PayGo API 明细才用于展示精确费用。
+### 风险优先控制台
 
-建议创建一个只读 Cloudflare API Token，授予：
+- 账户态势环使用当前最高真实利用率，不伪造趋势或历史数据。
+- 当前压力信号按真实利用率排序。
+- 免费额度卡支持全部、需要关注、达到即停、可能计费和数据不可用筛选。
+- 数据刷新失败时保留最后一次成功快照，并明确标记 `STALE`。
+- 单个采集器失败只降级对应产品，不遮挡其他账户数据。
+- PayGo 精确费用和 Analytics 额度估算分区展示，避免混淆统计口径。
+
+### 当前覆盖
+
+| 产品 | 指标 | 周期 | 精度 |
+| --- | --- | --- | --- |
+| Workers | 请求 | UTC 日 | Analytics 估算 |
+| Workers KV | 读、写、删除、列表、存储 | UTC 日 / 当前 | Analytics 估算 |
+| D1 | 行读取、行写入、账户存储 | UTC 日 / 当前 | Analytics 估算 |
+| R2 | Class A、Class B、当前存储快照 | UTC 月 / 当前 | Analytics 估算 |
+| Queues | 计费操作 | UTC 日 | Analytics 估算 |
+| Pages | 构建次数 | UTC 月 | REST API 计数 / 下限数据 |
+| PayGo | 当前账期明细 | 账期 | Billing API 精确值 |
+
+Workers AI、Images、Vectorize、Browser Rendering 和 Workflows 暂时只列出覆盖缺口，
+不会用缺少来源的数据生成“看起来合理”的假进度。额度目录统一维护在
+`shared/quota-catalog.ts`，当前核对日期为 `2026-07-27`。
+
+## 安全边界
+
+- `wrangler.jsonc` 的唯一入口是 `worker/src/index.ts`，没有 `assets` 配置。
+- Worker 关闭 `workers.dev`，仅绑定 API 自定义域名。
+- Cloudflare Access 在边缘保护 API；Worker 再校验
+  `Cf-Access-Jwt-Assertion` 的签名、签发方和应用 AUD。
+- CORS 只回显显式允许的 Origin，响应统一 `no-store`，错误不回传凭据或内部堆栈。
+- Vercel 通过 `vercel.json` 添加 CSP、点击劫持、MIME 嗅探、权限和来源策略。
+- 生产构建不输出 source map，静态 hash 资源使用不可变长缓存。
+- `/health` 在 Worker 代码层不要求 JWT，但生产 API 域名仍由 Cloudflare Access
+  边缘策略保护；不要把它当作公网匿名探针。
+
+前端保持简单的凭据 GET 请求。若未来增加会触发预检的自定义请求头，需要在 Access
+应用中将 `OPTIONS` 配置为绕过到源站；当前代码不会依赖这个额外例外。
+
+建议为 Worker 创建只读 Cloudflare API Token，仅授予：
 
 - Account Analytics: Read
 - Pages: Read（Pages 卡片）
 - Billing: Read（可选 PayGo 明细）
 
 ## 本地开发
+
+要求 Node.js 24 LTS 与 pnpm 11。仓库的 `.node-version` 和 `packageManager`
+字段固定了主版本选择。
 
 ```bash
 pnpm install
@@ -45,84 +86,77 @@ cp .env.example .env.local
 pnpm dev
 ```
 
-访问 `http://localhost:5173/?demo=1` 可直接查看演示数据。
+`pnpm dev:worker` 会在本地显式加入 `http://localhost:5173` CORS Origin，而不会修改
+生产 `wrangler.jsonc` 的单一允许来源。访问 `http://localhost:5173/?demo=1`
+可直接使用无凭据的安全演示数据。
 
 ## 部署
 
-前端和后端位于同一个仓库，但使用彼此独立的部署入口。
-
-### 后端：Cloudflare Workers
+### Cloudflare API Worker
 
 根目录 `wrangler.jsonc` 是 Worker 配置的唯一来源：
 
 - Worker：`cloudflare-usage-guard`
 - 入口：`worker/src/index.ts`
 - 自定义域名：`api.cloudflare.thanejoss.com`
-- 允许的浏览器来源：`https://cloudflare.thanejoss.com`
+- 生产允许来源：`https://cloudflare.thanejoss.com`
 - Access 团队域名：`https://thanejoss.cloudflareaccess.com`
-- 不配置 `assets`，因此不会把 Vite 前端部署到 API 域名
+- 必需 Secrets：`CF_ACCOUNT_ID`、`CF_API_TOKEN`、`POLICY_AUD`
 
-把生产密钥复制到被 Git 忽略的文件：
+把生产 Secret 写入被 Git 忽略的文件，再一次性提交：
 
 ```bash
 cp .dev.vars.example .prod.secrets
-```
-
-填写真实值后，通过 Wrangler 一次推送全部 Secret：
-
-```bash
 pnpm exec wrangler secret bulk .prod.secrets
 pnpm deploy:worker
 ```
 
-在 Zero Trust 的 Access 应用中把 `cloudflare-usage-guard` Worker 作为 destination，并为允许的
-用户配置 Allow 策略。然后从该应用的 `Additional settings` 复制 Application Audience（AUD）
-Tag，写入 `.prod.secrets` 的 `POLICY_AUD`。
+在 Zero Trust Access 应用中将 API 自定义域名作为 destination，为授权用户配置 Allow
+策略，并把 Application Audience Tag 写入 `POLICY_AUD`。
 
-前端会以 `credentials: "include"` 请求 API。首次使用时若浏览器尚未保存 API 域名的 Access
-Cookie，页面会提供一个新标签页授权入口；授权完成后返回面板重试即可。
+Cloudflare Dashboard 的 `Settings > Build` 变量只属于构建过程。三个必需 Secret
+必须位于 `Settings > Variables & Secrets`，才能作为 Worker 运行时绑定使用。
+`TEAM_DOMAIN` 与 `ALLOWED_ORIGINS` 是非敏感配置，保存在 `wrangler.jsonc`。
 
-Cloudflare Dashboard 中 `Settings > Build` 下的变量仅供构建过程使用。`CF_ACCOUNT_ID`、
-`CF_API_TOKEN` 和 `POLICY_AUD` 必须配置在 `Settings > Variables & Secrets` 中，才能作为
-Worker 运行时变量被代码和 Wrangler 识别。`TEAM_DOMAIN` 是非敏感配置，保存在
-`wrangler.jsonc`。
-
-Cloudflare Workers Builds 应使用以下设置：
+Workers Builds 使用：
 
 - Build command：`pnpm run build`
 - Deploy command：`npx wrangler deploy`
 - Non-production branch deploy command：`npx wrangler versions upload`
 - Root directory：仓库根目录
 
-Cloudflare Workers Builds 会注入 `WORKERS_CI=1`。根构建命令据此只执行
-`build:worker`，检查 Worker TypeScript；Wrangler 随后负责打包、上传和部署。
+Workers Builds 注入 `WORKERS_CI=1`，根构建脚本因此只执行 Worker TypeScript
+构建；Wrangler 随后负责打包和部署。
 
-### 前端：Vercel
+### Vercel 静态前端
 
-Vercel 同样使用 `pnpm run build`。其环境中没有 `WORKERS_CI=1`，因此根构建命令执行
-`build:frontend`，构建 Vite 前端并输出到 `dist`。仓库中的 `.env.production` 已将 API
-地址固定为 `https://api.cloudflare.thanejoss.com`；生产域名为
-`https://cloudflare.thanejoss.com`。
+Vercel 不注入 `WORKERS_CI=1`，因此 `pnpm run build` 执行 Vite 前端构建并输出
+`dist/`。`.env.production` 固定 API Origin，`vercel.json` 只配置静态前端框架与安全
+响应头。前端部署不执行 Wrangler，也不会托管 Worker API。
 
-前端部署不使用 Wrangler，也不由 Cloudflare Workers Builds 托管。
+## 质量验证
 
-本地验证生产构建：
-
-```bash
-pnpm build
-pnpm preview
-```
-
-## 校验
+一次执行完整本地门禁：
 
 ```bash
-pnpm typecheck
-pnpm test
+pnpm check
 pnpm build
+pnpm check:bundle
+WORKERS_CI=1 pnpm build
+pnpm worker:types:check
 pnpm worker:dry-run
+pnpm audit:dependencies
 ```
 
-测试覆盖 Access JWT 鉴权、CORS、UTC 日/月窗口、额度状态、R2 操作分类、存储快照合并、
-REST 分页、部分数据源失败以及聚合摘要。
+其中：
 
-额度常量核对日期为 `2026-07-21`。Cloudflare 产品定价会变化，部署前请重新核对官方文档。
+- `pnpm check` 串行执行 Oxlint、六组 TypeScript 工程检查、Node/jsdom 单元与 UI
+  测试，以及真实 workerd 运行时测试。
+- UI 测试验证风险筛选、进度条可访问名称、账单表语义和 Access 错误分流。
+- Worker 运行时测试验证健康检查、生产 CORS 和无 JWT 拒绝路径。
+- 前端预算为 JS gzip 90 KiB、CSS gzip 12 KiB，同时拒绝任何生产 `.map` 文件。
+- `worker:types:check` 防止 Wrangler 配置和生成的 `Env` 类型漂移。
+- `worker:dry-run` 证明 API 包不包含前端 assets，并显示预期的 5 个绑定。
+
+设计语言、状态模型、响应式策略和无障碍约束见
+[`docs/design-system.md`](docs/design-system.md)。

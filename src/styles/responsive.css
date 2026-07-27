@@ -1,0 +1,515 @@
+@media (max-width: 1080px) {
+  .header-inner {
+    gap: 24px;
+  }
+
+  .header-inner nav {
+    display: none;
+  }
+
+  .overview-section {
+    grid-template-columns: minmax(0, 1fr) 320px;
+  }
+
+  .overview-copy {
+    min-height: 350px;
+  }
+
+  .overview-copy h1 {
+    font-size: clamp(54px, 7vw, 76px);
+  }
+
+  .summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .summary-card:nth-child(2) {
+    border-right: 0;
+  }
+
+  .summary-card:nth-child(-n + 2) {
+    border-bottom: 1px solid var(--line);
+  }
+
+  .access-page {
+    grid-template-columns: 1fr;
+    gap: 64px;
+    padding-top: 46px;
+    padding-bottom: 70px;
+  }
+
+  .access-story,
+  .access-panel {
+    width: min(100%, 720px);
+    justify-self: center;
+  }
+
+  .access-story .brand {
+    margin-bottom: 76px;
+  }
+
+  .access-panel {
+    width: min(100%, 580px);
+  }
+}
+
+@media (max-width: 860px) {
+  .dashboard-main {
+    padding: 0 20px;
+  }
+
+  .overview-section {
+    grid-template-columns: 1fr;
+    padding-top: 52px;
+  }
+
+  .overview-copy {
+    min-height: auto;
+    padding: 30px 0;
+  }
+
+  .posture-card {
+    min-height: 320px;
+    display: grid;
+    grid-template-columns: 230px 1fr;
+    align-items: center;
+    gap: 22px;
+  }
+
+  .posture-meter {
+    grid-row: 1 / 3;
+    width: 190px;
+    height: 190px;
+  }
+
+  .posture-card > p {
+    align-self: end;
+    margin: 0;
+    text-align: left;
+  }
+
+  .posture-footer {
+    align-self: start;
+    margin: 0;
+  }
+
+  .summary-grid,
+  .signal-board {
+    grid-column: 1;
+  }
+
+  .product-grid,
+  .coverage-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .content-section {
+    padding-top: 90px;
+  }
+
+  .section-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .filter-tabs {
+    width: 100%;
+    overflow-x: auto;
+  }
+
+  .footer-inner {
+    grid-template-columns: 1fr auto;
+  }
+
+  .footer-meta {
+    grid-column: 1 / 3;
+    grid-row: 2;
+  }
+}
+
+@media (max-width: 640px) {
+  html {
+    scroll-padding-top: 74px;
+  }
+
+  .header-inner {
+    height: 64px;
+    padding: 0 14px;
+  }
+
+  .header-inner .brand-wordmark,
+  .connection-state small,
+  .refresh-button span {
+    display: none;
+  }
+
+  .connection-state {
+    min-width: 56px;
+    grid-template-columns: auto auto;
+    padding: 0 9px;
+  }
+
+  .connection-state > span {
+    font-size: 8px;
+  }
+
+  .refresh-button {
+    width: 42px;
+    padding: 0;
+  }
+
+  .dashboard-main {
+    padding: 0 14px;
+  }
+
+  .overview-section {
+    gap: 14px;
+    padding-top: 34px;
+  }
+
+  .overview-copy {
+    padding: 24px 2px 18px;
+  }
+
+  .overview-copy .eyebrow {
+    margin-bottom: 17px;
+  }
+
+  .overview-copy h1 {
+    font-size: clamp(48px, 15vw, 64px);
+  }
+
+  .overview-copy > p {
+    margin: 21px 0 18px;
+    font-size: 12px;
+    line-height: 1.75;
+  }
+
+  .overview-meta {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 7px;
+  }
+
+  .posture-card {
+    min-height: 315px;
+    display: flex;
+    padding: 24px;
+  }
+
+  .posture-meter {
+    width: 176px;
+    height: 176px;
+  }
+
+  .posture-card > p {
+    margin: 22px auto 0;
+    text-align: center;
+  }
+
+  .posture-footer {
+    align-self: stretch;
+    margin-top: 18px;
+  }
+
+  .summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .summary-card {
+    grid-template-columns: 1fr;
+    padding: 17px;
+  }
+
+  .summary-card:nth-child(odd) {
+    border-right: 1px solid var(--line);
+  }
+
+  .summary-icon {
+    grid-row: auto;
+    width: 32px;
+    height: 32px;
+    margin-bottom: 7px;
+  }
+
+  .summary-card > strong {
+    margin: 3px 0;
+    font-size: 20px;
+  }
+
+  .signal-board {
+    padding: 19px 16px;
+  }
+
+  .signal-board-heading {
+    align-items: flex-start;
+  }
+
+  .signal-board-heading > a {
+    display: none;
+  }
+
+  .signal-item {
+    grid-template-columns: 24px 1fr auto;
+    gap: 10px;
+    min-height: 82px;
+    padding: 10px 0;
+  }
+
+  .signal-bar {
+    grid-column: 2 / 4;
+    grid-row: 2;
+  }
+
+  .signal-value span,
+  .signal-item > svg {
+    display: none;
+  }
+
+  .content-section {
+    padding-top: 76px;
+  }
+
+  .section-heading {
+    gap: 21px;
+    margin-bottom: 22px;
+  }
+
+  .section-heading h2 {
+    font-size: 32px;
+  }
+
+  .filter-tabs {
+    padding-bottom: 5px;
+    scrollbar-width: thin;
+  }
+
+  .filter-tabs button {
+    min-height: 42px;
+  }
+
+  .product-grid {
+    gap: 13px;
+  }
+
+  .product-card {
+    padding: 19px;
+  }
+
+  .product-card-head {
+    align-items: flex-start;
+  }
+
+  .risk-badge {
+    min-height: 30px;
+  }
+
+  .product-description {
+    min-height: auto;
+  }
+
+  .metric-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .metric-heading > strong {
+    width: 100%;
+    overflow: visible;
+    text-overflow: initial;
+    white-space: normal;
+  }
+
+  .product-card-footer {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .product-card-footer > a {
+    min-height: 44px;
+  }
+
+  .billing-total {
+    text-align: left;
+  }
+
+  .billing-total > span {
+    justify-content: flex-start;
+  }
+
+  .table-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+    justify-content: center;
+    padding: 12px 15px;
+  }
+
+  .billing-table-scroll {
+    overflow: visible;
+  }
+
+  .billing-table-shell table,
+  .billing-table-shell tbody {
+    display: block;
+  }
+
+  .billing-table-shell thead {
+    display: none;
+  }
+
+  .billing-table-shell tr {
+    display: grid;
+    padding: 13px 15px;
+    border-top: 1px solid var(--line);
+  }
+
+  .billing-table-shell tbody tr:first-child {
+    border-top: 0;
+  }
+
+  .billing-table-shell td {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 7px 0;
+    border: 0;
+    text-align: right;
+  }
+
+  .billing-table-shell td::before {
+    flex: 0 0 auto;
+    color: var(--faint);
+    content: attr(data-label);
+    font-family: var(--font-mono);
+    font-size: 8px;
+    text-transform: uppercase;
+  }
+
+  .billing-table-shell td small {
+    display: inline;
+    margin: 0 0 0 4px;
+  }
+
+  .source-panel,
+  .gap-panel {
+    padding: 19px;
+  }
+
+  .gap-list {
+    grid-template-columns: 1fr;
+  }
+
+  .gap-list a {
+    min-height: 96px;
+  }
+
+  .footer-inner {
+    display: flex;
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 22px;
+    min-height: auto;
+    padding: 32px 18px;
+  }
+
+  .footer-meta {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .access-page {
+    gap: 48px;
+    padding: 30px 18px 48px;
+  }
+
+  .access-story .brand {
+    margin-bottom: 58px;
+  }
+
+  .access-story h1 {
+    font-size: clamp(48px, 15vw, 64px);
+  }
+
+  .access-lead {
+    font-size: 12px;
+  }
+
+  .architecture-flow {
+    grid-template-columns: 1fr;
+  }
+
+  .architecture-flow > svg {
+    justify-self: center;
+    transform: rotate(90deg);
+  }
+
+  .architecture-flow > div {
+    min-height: 66px;
+  }
+
+  .access-panel-body {
+    padding: 26px 20px;
+  }
+
+  .access-panel h2 {
+    font-size: 24px;
+  }
+
+  .loading-page > .brand {
+    top: 24px;
+    left: 20px;
+  }
+
+  .loading-page h1 {
+    font-size: 32px;
+  }
+}
+
+@media print {
+  :root {
+    color: #111;
+    background: #fff;
+    color-scheme: light;
+  }
+
+  body {
+    background: #fff;
+  }
+
+  .app-header,
+  .app-footer,
+  .filter-tabs,
+  .signal-board-heading > a,
+  .product-card-footer > a {
+    display: none;
+  }
+
+  .dashboard-main {
+    width: 100%;
+    padding: 0;
+  }
+
+  .overview-section {
+    padding-top: 0;
+  }
+
+  .overview-copy,
+  .posture-card,
+  .summary-grid,
+  .signal-board,
+  .product-card,
+  .source-panel,
+  .gap-panel,
+  .billing-table-shell,
+  .data-disclaimer {
+    color: #111;
+    background: #fff;
+    border-color: #bbb;
+    box-shadow: none;
+    break-inside: avoid;
+  }
+}
