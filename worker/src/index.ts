@@ -53,10 +53,12 @@ export default {
       const payload = await collectUsage(env);
       return jsonResponse(payload, 200, allowedOrigin);
     } catch (error) {
-      console.error("usage_collection_failed", {
-        name: error instanceof Error ? error.name : "UnknownError",
-        message: error instanceof Error ? error.message.slice(0, 240) : "unknown",
-      });
+      console.error(
+        JSON.stringify({
+          event: "usage_collection_failed",
+          error_name: error instanceof Error ? error.name : "UnknownError",
+        }),
+      );
       return jsonResponse(
         { error: "暂时无法生成用量快照" },
         502,

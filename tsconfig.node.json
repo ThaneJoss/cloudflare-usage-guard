@@ -20,7 +20,7 @@
   "include": [
     "vite.config.ts",
     "vitest.config.ts",
-    "tests",
-    "worker/worker-configuration.d.ts"
+    "vitest.worker.config.ts",
+    "scripts"
   ]
 }

@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "types": ["node", "vitest/globals", "@testing-library/jest-dom"]
+  },
+  "include": [
+    "src",
+    "shared",
+    "tests/frontend-*.test.ts",
+    "tests/frontend-*.test.tsx",
+    "tests/setup.ts"
+  ]
+}

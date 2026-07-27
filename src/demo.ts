@@ -3,6 +3,12 @@ import type {
   UsageMetric,
   UsagePayload,
 } from "../shared/usage";
+import {
+  COVERAGE_GAPS,
+  getProductMetadata,
+  PRODUCT_CATALOG,
+  QUOTA_CATALOG_AS_OF,
+} from "../shared/quota-catalog";
 
 const GB = 1_000_000_000;
 
@@ -17,16 +23,9 @@ export function createDemoPayload(): UsagePayload {
 
   const products: ProductUsage[] = [
     product({
-      id: "workers",
-      name: "Workers",
-      eyebrow: "边缘计算",
-      description: "HTTP 请求的每日免费额度。Cron 触发与部分内部调用可能采用不同计量规则。",
-      behavior: "plan-dependent",
-      behaviorLabel: "Free 停止 · Paid 超额计费",
-      documentationUrl: "https://developers.cloudflare.com/workers/platform/pricing/",
-      sourceLabel: "GraphQL · Workers Analytics",
+      ...getProductMetadata("workers"),
       metrics: [
-        metric("workers-requests", "请求", 72_480, 100_000, "requests", "day", dayEnd),
+        metricFromCatalog(PRODUCT_CATALOG.workers.metrics.requests, 72_480, dayEnd),
       ],
       details: [
         { label: "活跃脚本", value: "12" },
@@ -34,77 +33,47 @@ export function createDemoPayload(): UsagePayload {
       ],
     }),
     product({
-      id: "kv",
-      name: "Workers KV",
-      eyebrow: "键值存储",
-      description: "读取、写入、删除和列表操作按 UTC 日独立计额；存储是账户总量。",
-      behavior: "plan-dependent",
-      behaviorLabel: "Free 操作失败 · Paid 超额计费",
-      documentationUrl: "https://developers.cloudflare.com/kv/platform/pricing/",
-      sourceLabel: "GraphQL · KV Analytics",
+      ...getProductMetadata("kv"),
       metrics: [
-        metric("kv-reads", "读取", 41_238, 100_000, "operations", "day", dayEnd),
-        metric("kv-writes", "写入", 921, 1_000, "operations", "day", dayEnd),
-        metric("kv-deletes", "删除", 42, 1_000, "operations", "day", dayEnd),
-        metric("kv-lists", "列表", 126, 1_000, "operations", "day", dayEnd),
-        metric("kv-storage", "存储", 318_400_000, GB, "bytes", "current", null),
+        metricFromCatalog(PRODUCT_CATALOG.kv.metrics.reads, 41_238, dayEnd),
+        metricFromCatalog(PRODUCT_CATALOG.kv.metrics.writes, 921, dayEnd),
+        metricFromCatalog(PRODUCT_CATALOG.kv.metrics.deletes, 42, dayEnd),
+        metricFromCatalog(PRODUCT_CATALOG.kv.metrics.lists, 126, dayEnd),
+        metricFromCatalog(PRODUCT_CATALOG.kv.metrics.storage, 318_400_000, null),
       ],
     }),
     product({
-      id: "d1",
-      name: "D1",
-      eyebrow: "SQL 数据库",
-      description: "行读取、行写入按 UTC 日计额；账户存储上限按所有数据库合计。",
-      behavior: "plan-dependent",
-      behaviorLabel: "Free 查询失败 · Paid 超额计费",
-      documentationUrl: "https://developers.cloudflare.com/d1/platform/pricing/",
-      sourceLabel: "GraphQL · D1 Analytics",
+      ...getProductMetadata("d1"),
       metrics: [
-        metric("d1-rows-read", "读取行数", 1_640_820, 5_000_000, "rows", "day", dayEnd),
-        metric("d1-rows-written", "写入行数", 21_402, 100_000, "rows", "day", dayEnd),
-        metric("d1-storage", "账户存储", 1.82 * GB, 5 * GB, "bytes", "current", null),
+        metricFromCatalog(PRODUCT_CATALOG.d1.metrics.rowsRead, 1_640_820, dayEnd),
+        metricFromCatalog(PRODUCT_CATALOG.d1.metrics.rowsWritten, 21_402, dayEnd),
+        metricFromCatalog(PRODUCT_CATALOG.d1.metrics.storage, 1.82 * GB, null),
       ],
     }),
     product({
-      id: "r2",
-      name: "R2",
-      eyebrow: "对象存储",
-      description: "免费层包含月度 Class A、Class B 与 GB-month 存储额度；网络出口免费。",
-      behavior: "paid-overage",
-      behaviorLabel: "超过免费层后计费",
-      documentationUrl: "https://developers.cloudflare.com/r2/pricing/",
-      sourceLabel: "GraphQL · R2 Analytics",
+      ...getProductMetadata("r2"),
       metrics: [
-        metric("r2-class-a", "Class A", 234_180, 1_000_000, "operations", "month", monthEnd),
-        metric("r2-class-b", "Class B", 2_820_512, 10_000_000, "operations", "month", monthEnd),
-        metric("r2-storage", "当前存储快照", 6.42 * GB, 10 * GB, "bytes", "current", monthEnd, "当前快照不是精确 GB-month"),
+        metricFromCatalog(PRODUCT_CATALOG.r2.metrics.classA, 234_180, monthEnd),
+        metricFromCatalog(PRODUCT_CATALOG.r2.metrics.classB, 2_820_512, monthEnd),
+        metricFromCatalog(
+          PRODUCT_CATALOG.r2.metrics.storage,
+          6.42 * GB,
+          monthEnd,
+          "当前快照不是精确 GB-month",
+        ),
       ],
       details: [{ label: "免费操作", value: "18,942" }],
     }),
     product({
-      id: "queues",
-      name: "Queues",
-      eyebrow: "消息队列",
-      description: "发送、投递与确认/重试均可能形成计费操作，免费计划按 UTC 日计额。",
-      behavior: "plan-dependent",
-      behaviorLabel: "Free 停止 · Paid 超额计费",
-      documentationUrl: "https://developers.cloudflare.com/queues/platform/pricing/",
-      sourceLabel: "GraphQL · Queues Analytics",
+      ...getProductMetadata("queues"),
       metrics: [
-        metric("queues-operations", "计费操作", 6_310, 10_000, "operations", "day", dayEnd),
+        metricFromCatalog(PRODUCT_CATALOG.queues.metrics.operations, 6_310, dayEnd),
       ],
     }),
     product({
-      id: "pages",
-      name: "Pages",
-      eyebrow: "前端部署",
-      description: "免费计划每月最多 500 次构建；静态资源请求不计入 Workers 请求额度。",
-      behavior: "hard-stop",
-      behaviorLabel: "达到上限后构建停止",
-      documentationUrl: "https://developers.cloudflare.com/pages/platform/limits/",
-      sourceLabel: "REST · Pages Deployments",
+      ...getProductMetadata("pages"),
       metrics: [
-        metric("pages-builds", "构建次数", 84, 500, "builds", "month", monthEnd),
+        metricFromCatalog(PRODUCT_CATALOG.pages.metrics.builds, 84, monthEnd),
       ],
       details: [
         { label: "已检查项目", value: "8" },
@@ -115,7 +84,7 @@ export function createDemoPayload(): UsagePayload {
 
   return {
     generatedAt: now.toISOString(),
-    quotaCatalogAsOf: "2026-07-21",
+    quotaCatalogAsOf: QUOTA_CATALOG_AS_OF,
     timezone: "UTC",
     summary: {
       overall: "critical",
@@ -170,13 +139,7 @@ export function createDemoPayload(): UsagePayload {
       status: "ok" as const,
       message: "数据读取成功",
     })),
-    coverageGaps: [
-      gap("Workers AI", "10,000 neurons / UTC 日", "https://developers.cloudflare.com/workers-ai/platform/pricing/"),
-      gap("Images", "5,000 unique transformations / 月", "https://developers.cloudflare.com/images/pricing/"),
-      gap("Vectorize", "30M queried + 5M stored dimensions / 月", "https://developers.cloudflare.com/vectorize/platform/pricing/"),
-      gap("Browser Rendering", "10 browser minutes / UTC 日", "https://developers.cloudflare.com/browser-rendering/platform/pricing/"),
-      gap("Workflows", "3,000 steps / UTC 日", "https://developers.cloudflare.com/workflows/platform/pricing/"),
-    ],
+    coverageGaps: [...COVERAGE_GAPS],
     disclaimer: "这是演示数据。实际额度卡使用 Cloudflare Analytics/REST API 的运行数据估算，不等同于账单；所有日/月边界均按 UTC。",
   };
 }
@@ -230,11 +193,26 @@ function metric(
   };
 }
 
-function gap(name: string, allowance: string, documentationUrl: string) {
-  return {
-    name,
-    allowance,
-    reason: "尚未接入统一自动采集；保留在覆盖清单中，避免产生已监控的错觉。",
-    documentationUrl,
-  };
+function metricFromCatalog(
+  definition: {
+    id: string;
+    label: string;
+    limit: number;
+    unit: UsageMetric["unit"];
+    period: UsageMetric["period"];
+  },
+  used: number,
+  resetAt: string | null,
+  note: string | null = null,
+): UsageMetric {
+  return metric(
+    definition.id,
+    definition.label,
+    used,
+    definition.limit,
+    definition.unit,
+    definition.period,
+    resetAt,
+    note,
+  );
 }
