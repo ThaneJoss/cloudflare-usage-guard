@@ -48,11 +48,13 @@ export class AppErrorBoundary extends Component<
             用量数据没有被修改。重新载入页面通常即可恢复；若问题持续，
             请检查前后端版本是否一致。
           </p>
-          <button type="button" onClick={() => window.location.reload()}>
-            <RefreshCw size={17} />
-            重新载入
-          </button>
-          <a href="?demo=1">改用演示数据检查界面</a>
+          <div className="fatal-actions">
+            <button type="button" onClick={() => window.location.reload()}>
+              <RefreshCw size={17} />
+              重新载入
+            </button>
+            <a href="?demo=1">改用演示数据检查界面</a>
+          </div>
         </div>
       </main>
     );

@@ -1,7 +1,7 @@
 import { useState } from "react";
 
-import { ConnectionScreen } from "./components/ConnectionScreen";
 import { CoverageSection } from "./components/CoverageSection";
+import { DataLoadErrorScreen } from "./components/DataLoadErrorScreen";
 import { DashboardHeader } from "./components/DashboardHeader";
 import { DashboardOverview } from "./components/DashboardOverview";
 import { DashboardFooter } from "./components/DashboardFooter";
@@ -21,12 +21,10 @@ export function App() {
 
   if (!usage.data) {
     return (
-      <ConnectionScreen
+      <DataLoadErrorScreen
         endpoint={usage.endpoint}
         error={usage.error}
-        loading={usage.phase === "loading"}
-        onEndpointChange={usage.setEndpoint}
-        onSubmit={usage.connect}
+        onRetry={usage.refresh}
       />
     );
   }
@@ -42,7 +40,6 @@ export function App() {
         loading={usage.phase === "refreshing"}
         stale={Boolean(usage.error)}
         onRefresh={usage.refresh}
-        onResetEndpoint={usage.isDemo ? undefined : usage.resetEndpoint}
       />
       <main
         id="main-content"
