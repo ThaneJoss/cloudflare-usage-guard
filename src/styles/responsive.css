@@ -31,26 +31,6 @@
     border-bottom: 1px solid var(--line);
   }
 
-  .access-page {
-    grid-template-columns: 1fr;
-    gap: 64px;
-    padding-top: 46px;
-    padding-bottom: 70px;
-  }
-
-  .access-story,
-  .access-panel {
-    width: min(100%, 720px);
-    justify-self: center;
-  }
-
-  .access-story .brand {
-    margin-bottom: 76px;
-  }
-
-  .access-panel {
-    width: min(100%, 580px);
-  }
 }
 
 @media (max-width: 860px) {
@@ -150,7 +130,7 @@
   }
 
   .connection-state > span {
-    font-size: 8px;
+    font-size: 11px;
   }
 
   .refresh-button {
@@ -181,7 +161,7 @@
 
   .overview-copy > p {
     margin: 21px 0 18px;
-    font-size: 12px;
+    font-size: 15px;
     line-height: 1.75;
   }
 
@@ -384,7 +364,7 @@
     color: var(--faint);
     content: attr(data-label);
     font-family: var(--font-mono);
-    font-size: 8px;
+    font-size: 11px;
     text-transform: uppercase;
   }
 
@@ -419,44 +399,6 @@
     align-items: flex-start;
     flex-direction: column;
     gap: 8px;
-  }
-
-  .access-page {
-    gap: 48px;
-    padding: 30px 18px 48px;
-  }
-
-  .access-story .brand {
-    margin-bottom: 58px;
-  }
-
-  .access-story h1 {
-    font-size: clamp(48px, 15vw, 64px);
-  }
-
-  .access-lead {
-    font-size: 12px;
-  }
-
-  .architecture-flow {
-    grid-template-columns: 1fr;
-  }
-
-  .architecture-flow > svg {
-    justify-self: center;
-    transform: rotate(90deg);
-  }
-
-  .architecture-flow > div {
-    min-height: 66px;
-  }
-
-  .access-panel-body {
-    padding: 26px 20px;
-  }
-
-  .access-panel h2 {
-    font-size: 24px;
   }
 
   .loading-page > .brand {

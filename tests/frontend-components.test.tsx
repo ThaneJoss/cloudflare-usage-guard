@@ -3,10 +3,10 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { BillingSection } from "../src/components/BillingSection";
-import { ConnectionScreen } from "../src/components/ConnectionScreen";
+import { DataLoadErrorScreen } from "../src/components/DataLoadErrorScreen";
 import { UsageSection } from "../src/components/UsageSection";
 import { createDemoPayload } from "../src/demo";
 import type { UsageLoadError } from "../src/hooks/useUsageData";
@@ -47,12 +47,12 @@ describe("控制台组件", () => {
     expect(screen.getAllByRole("row")).toHaveLength(3);
   });
 
-  it("只在身份或网络错误时给出 Access 排查入口", () => {
+  it("数据加载失败时提供恢复操作，不再要求手工配置 API 地址", async () => {
+    const onRetry = vi.fn();
+    const user = userEvent.setup();
     const baseProps = {
       endpoint: "https://api.example.com",
-      loading: false,
-      onEndpointChange: () => undefined,
-      onSubmit: () => undefined,
+      onRetry,
     };
     const contractError: UsageLoadError = {
       kind: "contract",
@@ -64,15 +64,22 @@ describe("控制台组件", () => {
     };
 
     const view = render(
-      <ConnectionScreen {...baseProps} error={contractError} />,
+      <DataLoadErrorScreen {...baseProps} error={contractError} />,
     );
     expect(
-      screen.queryByRole("link", { name: /检查 Access/ }),
+      screen.getByRole("heading", { name: "暂时无法载入控制台" }),
+    ).toBeVisible();
+    expect(screen.queryByLabelText("Worker API 地址")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: /检查 API 状态/ }),
     ).not.toBeInTheDocument();
 
-    view.rerender(<ConnectionScreen {...baseProps} error={accessError} />);
+    await user.click(screen.getByRole("button", { name: "重新同步" }));
+    expect(onRetry).toHaveBeenCalledOnce();
+
+    view.rerender(<DataLoadErrorScreen {...baseProps} error={accessError} />);
     expect(
-      screen.getByRole("link", { name: /检查 Access/ }),
+      screen.getByRole("link", { name: /检查 API 状态/ }),
     ).toHaveAttribute("href", "https://api.example.com/v1/usage");
   });
 });

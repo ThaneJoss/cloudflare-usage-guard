@@ -16,17 +16,17 @@
 
   --bg: #070a0d;
   --bg-elevated: #0b1015;
-  --surface: #0e141a;
-  --surface-raised: #121a21;
-  --surface-soft: #151e26;
-  --line: #23303a;
-  --line-strong: #34434f;
+  --surface: #10171d;
+  --surface-raised: #172129;
+  --surface-soft: #1a252e;
+  --line: #30404b;
+  --line-strong: #465967;
   --text: #f4f7f8;
-  --text-soft: #c1ccd2;
-  --muted: #8d9ba4;
-  --faint: #788791;
+  --text-soft: #d5dde1;
+  --muted: #b1bec5;
+  --faint: #94a5af;
   --orange: #ff7a1a;
-  --orange-bright: #ff9a50;
+  --orange-bright: #ffad70;
   --orange-soft: #ff7a1a1c;
   --cyan: #5de4ff;
   --cyan-soft: #5de4ff16;
@@ -52,11 +52,6 @@
 @keyframes breathe {
   0%, 100% { opacity: 0.42; transform: scale(0.94); }
   50% { opacity: 1; transform: scale(1.04); }
-}
-
-@keyframes scan {
-  from { transform: translateY(-120%); }
-  to { transform: translateY(420%); }
 }
 
 @keyframes load-shift {

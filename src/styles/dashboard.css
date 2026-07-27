@@ -24,22 +24,22 @@
 
 .inline-alert strong {
   margin-bottom: 2px;
-  font-size: 11px;
+  font-size: 14px;
 }
 
 .inline-alert div > span {
-  color: #c99ca0;
-  font-size: 10px;
+  color: #efb8bd;
+  font-size: 13px;
 }
 
 .inline-alert button {
-  min-height: 38px;
-  padding: 0 12px;
+  min-height: 44px;
+  padding: 0 14px;
   color: #ffd0d3;
   background: transparent;
   border: 1px solid #ff6f7850;
   border-radius: 8px;
-  font-size: 10px;
+  font-size: 13px;
   font-weight: 750;
   cursor: pointer;
 }
@@ -81,8 +81,8 @@
   max-width: 700px;
   margin: 27px 0 24px;
   color: var(--muted);
-  font-size: 14px;
-  line-height: 1.85;
+  font-size: 16px;
+  line-height: 1.75;
 }
 
 .overview-meta {
@@ -92,7 +92,7 @@
   gap: 18px;
   color: var(--faint);
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: 12px;
 }
 
 .overview-meta span {
@@ -188,7 +188,7 @@
 .posture-meter span {
   color: var(--faint);
   font-family: var(--font-mono);
-  font-size: 8px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.15em;
 }
@@ -210,8 +210,8 @@
   max-width: 310px;
   margin: 25px auto 0;
   color: var(--muted);
-  font-size: 10px;
-  line-height: 1.6;
+  font-size: 13px;
+  line-height: 1.65;
   text-align: center;
 }
 
@@ -228,12 +228,12 @@
 .posture-footer span {
   color: var(--faint);
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .posture-footer strong {
   font-family: var(--font-mono);
-  font-size: 16px;
+  font-size: 18px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -309,7 +309,7 @@
 .summary-card > span:not(.summary-icon) {
   overflow: hidden;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 13px;
   font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -318,7 +318,7 @@
 .summary-card > strong {
   overflow: hidden;
   font-family: var(--font-mono);
-  font-size: 23px;
+  font-size: 25px;
   letter-spacing: -0.045em;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -327,7 +327,7 @@
 .summary-card > small {
   overflow: hidden;
   color: var(--faint);
-  font-size: 9px;
+  font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -357,12 +357,12 @@
 }
 
 .signal-board-heading > a {
-  min-height: 40px;
+  min-height: 44px;
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: var(--muted);
-  font-size: 10px;
+  color: var(--text-soft);
+  font-size: 13px;
   font-weight: 700;
   text-decoration: none;
 }
@@ -392,7 +392,7 @@
 .signal-rank {
   color: var(--faint);
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .signal-name strong,
@@ -403,14 +403,14 @@
 }
 
 .signal-name strong {
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .signal-name span,
 .signal-value span {
   margin-top: 3px;
   color: var(--faint);
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .signal-bar {
@@ -435,7 +435,7 @@
 .signal-value strong {
   color: var(--signal-color);
   font-family: var(--font-mono);
-  font-size: 14px;
+  font-size: 16px;
 }
 
 .signal-item > svg {
@@ -450,7 +450,7 @@
   gap: 9px;
   color: var(--muted);
   border-top: 1px solid var(--line);
-  font-size: 11px;
+  font-size: 14px;
 }
 
 .content-section {
@@ -475,8 +475,8 @@
 .section-heading p {
   margin: 0;
   color: var(--muted);
-  font-size: 11px;
-  line-height: 1.6;
+  font-size: 14px;
+  line-height: 1.65;
 }
 
 .filter-tabs {
@@ -490,13 +490,13 @@
 }
 
 .filter-tabs button {
-  min-height: 40px;
-  padding: 0 13px;
+  min-height: 44px;
+  padding: 0 15px;
   color: var(--muted);
   background: transparent;
   border: 0;
   border-radius: 8px;
-  font-size: 10px;
+  font-size: 13px;
   font-weight: 700;
   white-space: nowrap;
   cursor: pointer;
@@ -594,7 +594,7 @@
   overflow: hidden;
   color: var(--faint);
   font-family: var(--font-mono);
-  font-size: 8px;
+  font-size: 11px;
   letter-spacing: 0.12em;
   text-overflow: ellipsis;
   text-transform: uppercase;
@@ -603,23 +603,23 @@
 
 .product-identity h3 {
   margin: 3px 0 0;
-  font-size: 19px;
+  font-size: 21px;
   letter-spacing: -0.035em;
 }
 
 .risk-badge {
   --badge-color: var(--green);
-  min-height: 28px;
+  min-height: 32px;
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
   gap: 6px;
-  padding: 0 9px;
+  padding: 0 11px;
   color: var(--badge-color);
   background: color-mix(in srgb, var(--badge-color) 9%, transparent);
   border: 1px solid color-mix(in srgb, var(--badge-color) 22%, transparent);
   border-radius: 999px;
-  font-size: 8px;
+  font-size: 11px;
   font-weight: 750;
 }
 
@@ -637,11 +637,11 @@
 }
 
 .product-description {
-  min-height: 44px;
+  min-height: 50px;
   margin: 20px 0 14px;
   color: var(--muted);
-  font-size: 10px;
-  line-height: 1.7;
+  font-size: 14px;
+  line-height: 1.65;
 }
 
 .product-context {
@@ -650,7 +650,7 @@
   gap: 8px 14px;
   margin-bottom: 18px;
   color: var(--faint);
-  font-size: 8px;
+  font-size: 12px;
 }
 
 .product-context span {
@@ -673,14 +673,14 @@
   background: var(--red-soft);
   border: 1px solid #ff6f7826;
   border-radius: 9px;
-  font-size: 9px;
-  line-height: 1.45;
+  font-size: 13px;
+  line-height: 1.55;
 }
 
 .metric-list {
   display: grid;
-  gap: 19px;
-  padding: 20px 0;
+  gap: 22px;
+  padding: 22px 0;
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
 }
@@ -704,22 +704,22 @@
 
 .metric-heading > span {
   color: var(--text-soft);
-  font-size: 10px;
+  font-size: 13px;
   font-weight: 700;
 }
 
 .metric-heading > strong {
   overflow: hidden;
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .progress-track {
-  height: 7px;
-  margin: 8px 0 6px;
+  height: 8px;
+  margin: 10px 0 7px;
   overflow: hidden;
   background:
     repeating-linear-gradient(
@@ -743,7 +743,7 @@
 .metric-meta {
   color: var(--faint);
   font-family: var(--font-mono);
-  font-size: 8px;
+  font-size: 11px;
 }
 
 .metric-meta strong {
@@ -754,8 +754,8 @@
   display: block;
   margin-top: 6px;
   color: var(--muted);
-  font-size: 8px;
-  line-height: 1.5;
+  font-size: 12px;
+  line-height: 1.55;
 }
 
 .product-card-footer {
@@ -772,7 +772,7 @@
   flex-wrap: wrap;
   gap: 8px 14px;
   color: var(--faint);
-  font-size: 8px;
+  font-size: 11px;
 }
 
 .detail-list strong {
@@ -788,13 +788,13 @@
 }
 
 .product-card-footer > a {
-  min-height: 34px;
+  min-height: 44px;
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
   gap: 5px;
   color: var(--orange-bright);
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 750;
   text-decoration: none;
 }
@@ -826,13 +826,13 @@
 
 .empty-state strong {
   color: var(--text-soft);
-  font-size: 11px;
+  font-size: 14px;
 }
 
 .empty-state span {
   margin-top: 3px;
   color: var(--faint);
-  font-size: 9px;
+  font-size: 12px;
 }
 
 .billing-total {
@@ -846,20 +846,20 @@
   justify-content: flex-end;
   gap: 6px;
   color: var(--muted);
-  font-size: 9px;
+  font-size: 12px;
 }
 
 .billing-total > strong {
   display: block;
   margin: 4px 0;
   font-family: var(--font-mono);
-  font-size: 27px;
+  font-size: 30px;
   letter-spacing: -0.05em;
 }
 
 .billing-total > small {
   color: var(--faint);
-  font-size: 8px;
+  font-size: 11px;
 }
 
 .billing-unavailable {
@@ -884,15 +884,15 @@
 }
 
 .billing-unavailable strong {
-  font-size: 12px;
+  font-size: 15px;
 }
 
 .billing-unavailable p {
   max-width: 780px;
   margin: 6px 0 0;
   color: var(--muted);
-  font-size: 10px;
-  line-height: 1.65;
+  font-size: 13px;
+  line-height: 1.7;
 }
 
 .billing-table-shell {
@@ -913,7 +913,7 @@
   background: #10171d;
   border-bottom: 1px solid var(--line);
   font-family: var(--font-mono);
-  font-size: 8px;
+  font-size: 11px;
 }
 
 .table-toolbar span {
@@ -929,7 +929,7 @@
 .billing-table-shell table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 10px;
+  font-size: 13px;
 }
 
 .billing-table-shell th {
@@ -937,7 +937,7 @@
   color: var(--faint);
   background: #090e12;
   font-family: var(--font-mono);
-  font-size: 8px;
+  font-size: 11px;
   letter-spacing: 0.1em;
   text-align: left;
   text-transform: uppercase;
@@ -966,7 +966,7 @@
   display: block;
   margin-top: 3px;
   color: var(--faint);
-  font-size: 8px;
+  font-size: 11px;
 }
 
 .billing-table-shell td:last-child {
@@ -999,12 +999,12 @@
 
 .coverage-score span {
   color: var(--muted);
-  font-size: 8px;
+  font-size: 11px;
 }
 
 .coverage-score strong {
   font-family: var(--font-mono);
-  font-size: 14px;
+  font-size: 16px;
 }
 
 .coverage-grid {
@@ -1043,13 +1043,13 @@
   display: block;
   color: var(--faint);
   font-family: var(--font-mono);
-  font-size: 7px;
+  font-size: 11px;
   letter-spacing: 0.13em;
 }
 
 .panel-heading h3 {
   margin: 3px 0 0;
-  font-size: 15px;
+  font-size: 18px;
   letter-spacing: -0.025em;
 }
 
@@ -1059,7 +1059,7 @@
 }
 
 .source-row {
-  min-height: 50px;
+  min-height: 58px;
   display: grid;
   grid-template-columns: auto 1fr auto;
   align-items: center;
@@ -1097,19 +1097,19 @@
 
 .source-row strong {
   color: var(--text-soft);
-  font-size: 9px;
+  font-size: 12px;
 }
 
 .source-row small {
   margin-top: 2px;
   color: var(--faint);
-  font-size: 8px;
+  font-size: 11px;
 }
 
 .source-label {
   color: var(--green);
   font-family: var(--font-mono);
-  font-size: 7px;
+  font-size: 11px;
 }
 
 .source-partial .source-label { color: var(--amber); }
@@ -1126,8 +1126,8 @@
   grid-template-columns: 1fr auto;
   gap: 5px 9px;
   min-width: 0;
-  min-height: 104px;
-  padding: 13px;
+  min-height: 122px;
+  padding: 15px;
   background: #0a1014;
   border: 1px solid transparent;
   border-radius: 9px;
@@ -1151,21 +1151,21 @@
 
 .gap-list strong {
   color: var(--text-soft);
-  font-size: 10px;
+  font-size: 13px;
 }
 
 .gap-list span {
   margin-top: 3px;
   color: var(--muted);
-  font-size: 8px;
+  font-size: 11px;
 }
 
 .gap-list p {
   grid-column: 1 / 3;
   margin: 2px 0 0;
   color: var(--faint);
-  font-size: 8px;
-  line-height: 1.5;
+  font-size: 11px;
+  line-height: 1.55;
 }
 
 .data-disclaimer {
@@ -1187,11 +1187,11 @@
 .data-disclaimer strong {
   display: block;
   color: var(--text-soft);
-  font-size: 9px;
+  font-size: 12px;
 }
 
 .data-disclaimer p {
   margin: 4px 0 0;
-  font-size: 9px;
-  line-height: 1.6;
+  font-size: 12px;
+  line-height: 1.65;
 }

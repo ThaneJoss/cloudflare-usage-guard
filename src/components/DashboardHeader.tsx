@@ -1,8 +1,4 @@
-import {
-  Activity,
-  RefreshCw,
-  RotateCcw,
-} from "lucide-react";
+import { Activity, RefreshCw } from "lucide-react";
 
 import type { UsagePayload } from "../../shared/usage";
 import { formatDateTime } from "../lib/usage";
@@ -14,7 +10,6 @@ interface DashboardHeaderProps {
   loading: boolean;
   stale: boolean;
   onRefresh: () => void;
-  onResetEndpoint: (() => void) | undefined;
 }
 
 export function DashboardHeader({
@@ -23,7 +18,6 @@ export function DashboardHeader({
   loading,
   stale,
   onRefresh,
-  onResetEndpoint,
 }: DashboardHeaderProps) {
   return (
     <header className="app-header">
@@ -52,17 +46,6 @@ export function DashboardHeader({
             <span>{stale ? "STALE" : demo ? "DEMO" : "LIVE"}</span>
             <small>{formatDateTime(data.generatedAt)}</small>
           </div>
-          {onResetEndpoint ? (
-            <button
-              className="ghost-icon-button"
-              type="button"
-              onClick={onResetEndpoint}
-              aria-label="重新配置 API 地址"
-              title="重新配置 API 地址"
-            >
-              <RotateCcw size={17} />
-            </button>
-          ) : null}
           <button
             className="refresh-button"
             type="button"

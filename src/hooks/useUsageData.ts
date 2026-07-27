@@ -1,10 +1,9 @@
-import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { UsagePayload } from "../../shared/usage";
 import { createDemoPayload } from "../demo";
 import { normalizeEndpoint, parseUsagePayload } from "../lib/usage";
 
-const ENDPOINT_KEY = "cf-usage-dashboard-endpoint";
 const configuredEndpoint = normalizeEndpoint(import.meta.env.VITE_API_BASE_URL ?? "");
 
 type LoadPhase = "idle" | "loading" | "ready" | "refreshing";
@@ -20,28 +19,23 @@ interface UsageDataController {
   error: UsageLoadError | null;
   isDemo: boolean;
   phase: LoadPhase;
-  connect: (event: FormEvent<HTMLFormElement>) => void;
   refresh: () => void;
-  resetEndpoint: () => void;
-  setEndpoint: (value: string) => void;
 }
 
 export function useUsageData(): UsageDataController {
   const isDemo = new URLSearchParams(window.location.search).get("demo") === "1";
-  const initialEndpoint = getInitialEndpoint();
-  const [endpoint, setEndpoint] = useState(initialEndpoint);
   const [data, setData] = useState<UsagePayload | null>(() =>
     isDemo ? createDemoPayload() : null,
   );
   const [phase, setPhase] = useState<LoadPhase>(
-    isDemo ? "ready" : initialEndpoint ? "loading" : "idle",
+    isDemo ? "ready" : "loading",
   );
   const [error, setError] = useState<UsageLoadError | null>(null);
   const autoloaded = useRef(false);
   const requestSequence = useRef(0);
 
   const loadUsage = useCallback(
-    async (candidateEndpoint: string, mode: "connect" | "refresh") => {
+    async (mode: "initial" | "refresh") => {
       if (isDemo) {
         setData(createDemoPayload());
         setError(null);
@@ -49,11 +43,10 @@ export function useUsageData(): UsageDataController {
         return;
       }
 
-      const normalizedEndpoint = normalizeEndpoint(candidateEndpoint);
-      if (!normalizedEndpoint) {
+      if (!configuredEndpoint) {
         setError({
           kind: "contract",
-          message: "请输入有效的 HTTPS Worker API 地址；本地开发可使用 localhost。",
+          message: "当前构建未配置 VITE_API_BASE_URL，无法确定用量 API 地址。",
         });
         setPhase("idle");
         return;
@@ -65,7 +58,7 @@ export function useUsageData(): UsageDataController {
       setPhase(mode === "refresh" && data ? "refreshing" : "loading");
 
       try {
-        const response = await fetch(`${normalizedEndpoint}/v1/usage`, {
+        const response = await fetch(`${configuredEndpoint}/v1/usage`, {
           credentials: "include",
           headers: { Accept: "application/json" },
           signal: AbortSignal.timeout(25_000),
@@ -88,8 +81,6 @@ export function useUsageData(): UsageDataController {
         const payload = parseUsagePayload(body);
         if (requestId !== requestSequence.current) return;
 
-        localStorage.setItem(ENDPOINT_KEY, normalizedEndpoint);
-        setEndpoint(normalizedEndpoint);
         setData(payload);
         setPhase("ready");
       } catch (caught) {
@@ -102,45 +93,23 @@ export function useUsageData(): UsageDataController {
   );
 
   useEffect(() => {
-    if (isDemo || !endpoint || data || autoloaded.current) return;
+    if (isDemo || data || autoloaded.current) return;
     autoloaded.current = true;
-    void loadUsage(endpoint, "connect");
-  }, [data, endpoint, isDemo, loadUsage]);
-
-  function connect(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    void loadUsage(endpoint, "connect");
-  }
+    void loadUsage("initial");
+  }, [data, isDemo, loadUsage]);
 
   function refresh() {
-    void loadUsage(endpoint, "refresh");
-  }
-
-  function resetEndpoint() {
-    requestSequence.current += 1;
-    localStorage.removeItem(ENDPOINT_KEY);
-    setEndpoint(configuredEndpoint);
-    setData(null);
-    setError(null);
-    setPhase("idle");
+    void loadUsage(data ? "refresh" : "initial");
   }
 
   return {
     data,
-    endpoint,
+    endpoint: configuredEndpoint,
     error,
     isDemo,
     phase,
-    connect,
     refresh,
-    resetEndpoint,
-    setEndpoint,
   };
-}
-
-function getInitialEndpoint(): string {
-  const storedEndpoint = localStorage.getItem(ENDPOINT_KEY);
-  return normalizeEndpoint(storedEndpoint ?? "") || configuredEndpoint;
 }
 
 function getResponseError(value: unknown): string | null {

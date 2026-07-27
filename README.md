@@ -15,7 +15,8 @@
   `https://cloudflare.thanejoss.com`。
 - 后端：Cloudflare Worker，部署到
   `https://api.cloudflare.thanejoss.com`。
-- 运行时契约：API Token 只存在于 Worker Secret；浏览器仅保存 API Origin。
+- 运行时契约：API Token 只存在于 Worker Secret；API Origin 由前端构建环境固定，
+  浏览器不保存端点或凭据。
 - 数据契约：Zod Mini 在浏览器运行时校验完整响应，避免前后端版本漂移静默污染界面。
 - 工程门禁：Oxlint、严格 TypeScript、Vitest、Testing Library、workerd
   运行时测试、产物预算和 Wrangler dry-run。
@@ -152,7 +153,7 @@ pnpm audit:dependencies
 
 - `pnpm check` 串行执行 Oxlint、六组 TypeScript 工程检查、Node/jsdom 单元与 UI
   测试，以及真实 workerd 运行时测试。
-- UI 测试验证风险筛选、进度条可访问名称、账单表语义和 Access 错误分流。
+- UI 测试验证风险筛选、进度条可访问名称、账单表语义和数据加载错误恢复。
 - Worker 运行时测试验证健康检查、生产 CORS 和无 JWT 拒绝路径。
 - 前端预算为 JS gzip 90 KiB、CSS gzip 12 KiB，同时拒绝任何生产 `.map` 文件。
 - `worker:types:check` 防止 Wrangler 配置和生成的 `Env` 类型漂移。
