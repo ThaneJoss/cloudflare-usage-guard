@@ -8,22 +8,23 @@ import type {
   UsageSummary,
 } from "../../shared/usage";
 import {
-  COVERAGE_GAPS,
   getProductMetadata,
   PRODUCT_CATALOG,
   QUOTA_CATALOG_AS_OF,
+  REALTIME_COVERAGE_GAPS,
   type ProductId,
 } from "../../shared/quota-catalog";
 import {
   CloudflareClient,
+  type BillableUsageRaw,
   type D1UsageRaw,
   type KvUsageRaw,
   type PagesUsageRaw,
-  type PaygoUsageRawRow,
   type QueueUsageRaw,
   type R2UsageRaw,
   type WorkersUsageRaw,
 } from "./cloudflare";
+import type { ResponseCache } from "./cache";
 import {
   createMetric,
   getTimeWindows,
@@ -45,7 +46,13 @@ interface ProductDefinition {
   behaviorLabel: string;
   documentationUrl: string;
   sourceLabel: string;
+  cadence: SourceHealth["cadence"];
   unavailableMetrics: () => UsageMetric[];
+}
+
+export interface UsageCollectionOptions {
+  cache?: ResponseCache;
+  cacheOrigin?: string;
 }
 
 export interface UsageClient {
@@ -55,56 +62,66 @@ export interface UsageClient {
   getR2Usage(windows: TimeWindows): Promise<R2UsageRaw>;
   getQueueUsage(windows: TimeWindows): Promise<QueueUsageRaw>;
   getPagesUsage(windows: TimeWindows): Promise<PagesUsageRaw>;
-  getPaygoUsage(): Promise<PaygoUsageRawRow[]>;
+  getBillableUsage(): Promise<BillableUsageRaw>;
 }
 
 export async function collectUsage(
   env: Pick<Env, "CF_ACCOUNT_ID" | "CF_API_TOKEN">,
   now = new Date(),
   providedClient?: UsageClient,
+  options: UsageCollectionOptions = {},
 ): Promise<UsagePayload> {
   const windows = getTimeWindows(now);
+  const generatedAt = now.toISOString();
   const client =
     providedClient ??
     new CloudflareClient({
       accountId: env.CF_ACCOUNT_ID,
       apiToken: env.CF_API_TOKEN,
+      ...(options.cache ? { cache: options.cache } : {}),
+      ...(options.cacheOrigin ? { cacheOrigin: options.cacheOrigin } : {}),
     });
 
   const [productResults, billingResult] = await Promise.all([
     Promise.all([
       loadProduct(
         WORKERS_DEFINITION,
+        generatedAt,
         () => client.getWorkersUsage(windows),
         (usage) => buildWorkersProduct(usage, windows),
       ),
       loadProduct(
         KV_DEFINITION,
+        generatedAt,
         () => client.getKvUsage(windows),
         (usage) => buildKvProduct(usage, windows),
       ),
       loadProduct(
         D1_DEFINITION,
+        generatedAt,
         () => client.getD1Usage(windows),
         (usage) => buildD1Product(usage, windows),
       ),
       loadProduct(
         R2_DEFINITION,
+        generatedAt,
         () => client.getR2Usage(windows),
         (usage) => buildR2Product(usage, windows),
       ),
       loadProduct(
         QUEUES_DEFINITION,
+        generatedAt,
         () => client.getQueueUsage(windows),
         (usage) => buildQueuesProduct(usage, windows),
       ),
       loadProduct(
         PAGES_DEFINITION,
+        generatedAt,
         () => client.getPagesUsage(windows),
         (usage) => buildPagesProduct(usage, windows),
       ),
     ]),
-    loadBilling(() => client.getPaygoUsage()),
+    loadBilling(() => client.getBillableUsage()),
   ]);
 
   const products = productResults.map((result) => result.product);
@@ -114,21 +131,22 @@ export async function collectUsage(
   ];
 
   return {
-    generatedAt: now.toISOString(),
+    generatedAt,
     quotaCatalogAsOf: QUOTA_CATALOG_AS_OF,
     timezone: "UTC",
     summary: summarize(products, sources),
     products,
     billing: billingResult.billing,
     sources,
-    coverageGaps: [...COVERAGE_GAPS],
+    realtimeCoverageGaps: [...REALTIME_COVERAGE_GAPS],
     disclaimer:
-      "额度卡使用 Cloudflare Analytics/REST API 的运行数据估算，不等同于账单；PayGo 表（若账户和权限支持）才是可计费用量来源。所有日/月边界均按 UTC。",
+      "额度卡使用 Analytics/REST 数据估算近实时风险，不等同于账单；可计费用量来自官方 Billable Usage API，按日更新且可能晚于当前活动。所有日/月边界均按 UTC。",
   };
 }
 
 async function loadProduct<T>(
   definition: ProductDefinition,
+  dataAsOf: string,
   load: () => Promise<T>,
   build: (value: T) => ProductUsage,
 ): Promise<ProductLoadResult> {
@@ -141,6 +159,8 @@ async function loadProduct<T>(
         id: definition.id,
         label: definition.sourceLabel,
         status: product.partial ? "partial" : "ok",
+        cadence: definition.cadence,
+        dataAsOf,
         message: product.partial ? "返回了可用的下限数据" : "数据读取成功",
       },
     };
@@ -149,7 +169,7 @@ async function loadProduct<T>(
     const message = publicErrorMessage(error);
     return {
       product: {
-        ...definition,
+        ...productMetadata(definition),
         available: false,
         partial: false,
         error: message,
@@ -160,6 +180,8 @@ async function loadProduct<T>(
         id: definition.id,
         label: definition.sourceLabel,
         status: "error",
+        cadence: definition.cadence,
+        dataAsOf: null,
         message,
       },
     };
@@ -346,30 +368,42 @@ function buildPagesProduct(
   };
 }
 
-async function loadBilling(load: () => Promise<PaygoUsageRawRow[]>): Promise<{
+async function loadBilling(load: () => Promise<BillableUsageRaw>): Promise<{
   billing: BillingUsage;
   source: SourceHealth;
 }> {
   const startedAt = Date.now();
   try {
-    const rawRows = await load();
-    const rows = rawRows.map((row) => ({
-      id: row.id,
-      service: row.service,
-      family: row.family,
-      consumed: row.consumed,
-      consumedUnit: row.consumedUnit,
-      pricingQuantity: row.pricingQuantity,
-      cost: row.cost,
-      currency: row.currency,
+    const raw = await load();
+    const rows = raw.rows.map((row) => ({
+      id: billableUsageRowId(row),
+      service: row.ServiceName,
+      family: row.ServiceFamilyName ?? row.ServiceName,
+      description: row.ChargeDescription,
+      consumed: row.ConsumedQuantity,
+      consumedUnit: row.ConsumedUnit,
+      pricingQuantity: row.PricingQuantity,
+      pricingUnit: row.PricingUnit,
+      cost: row.BilledCost,
+      currency: row.BillingCurrency,
+      chargePeriodStart: row.ChargePeriodStart,
+      chargePeriodEnd: row.ChargePeriodEnd,
+      zoneName: row.ZoneName ?? null,
+      subscriptionId: row.SubscriptionId ?? null,
     }));
     const currencies = new Set(rows.map((row) => row.currency));
     const currency = currencies.size === 1 ? rows[0]?.currency ?? null : null;
+    const dataThrough = maxString(
+      raw.rows.map((row) => row.ChargePeriodEnd),
+    );
     const billing: BillingUsage = {
       available: true,
+      covered: raw.covered,
       error: null,
-      periodStart: minString(rawRows.map((row) => row.periodStart)),
-      periodEnd: maxString(rawRows.map((row) => row.periodEnd)),
+      billingPeriodStart: minString(
+        raw.rows.map((row) => row.BillingPeriodStart),
+      ),
+      dataThrough,
       totalCost: currency === null ? null : safeSum(rows.map((row) => row.cost)),
       currency,
       rows,
@@ -378,9 +412,15 @@ async function loadBilling(load: () => Promise<PaygoUsageRawRow[]>): Promise<{
       billing,
       source: {
         id: "billing",
-        label: "Billing PayGo API",
-        status: "ok",
-        message: rows.length ? "本账期用量读取成功" : "本账期暂无 PayGo 明细",
+        label: "Billing · Billable Usage API V1",
+        status: raw.covered ? "ok" : "partial",
+        cadence: "daily",
+        dataAsOf: dataThrough,
+        message: raw.covered
+          ? rows.length
+            ? "官方日级用量读取成功"
+            : "本账期暂无可计费用量记录"
+          : "此账户暂未被 Billable Usage API 覆盖",
       },
     };
   } catch (error) {
@@ -389,21 +429,39 @@ async function loadBilling(load: () => Promise<PaygoUsageRawRow[]>): Promise<{
     return {
       billing: {
         available: false,
+        covered: null,
         error: message,
-        periodStart: null,
-        periodEnd: null,
+        billingPeriodStart: null,
+        dataThrough: null,
         totalCost: null,
         currency: null,
         rows: [],
       },
       source: {
         id: "billing",
-        label: "Billing PayGo API（可选）",
+        label: "Billing · Billable Usage API V1（可选）",
         status: "error",
+        cadence: "daily",
+        dataAsOf: null,
         message,
       },
     };
   }
+}
+
+function billableUsageRowId(row: BillableUsageRaw["rows"][number]): string {
+  return [
+    row.SubscriptionId ?? "account",
+    row.ZoneId ?? "account",
+    row.ServiceFamilyName ?? row.ServiceName,
+    row.ServiceName,
+    row.ChargeDescription ?? "usage",
+    row.PricingUnit,
+    row.ChargePeriodStart,
+    row.ChargePeriodEnd,
+  ]
+    .map((part) => encodeURIComponent(part))
+    .join(":");
 }
 
 function availableProduct(
@@ -412,12 +470,27 @@ function availableProduct(
   details: ProductUsage["details"] = [],
 ): ProductUsage {
   return {
-    ...definition,
+    ...productMetadata(definition),
     available: true,
     partial: false,
     error: null,
     metrics,
     details,
+  };
+}
+
+function productMetadata(
+  definition: ProductDefinition,
+): Omit<ProductUsage, "available" | "partial" | "error" | "metrics" | "details"> {
+  return {
+    id: definition.id,
+    name: definition.name,
+    eyebrow: definition.eyebrow,
+    description: definition.description,
+    behavior: definition.behavior,
+    behaviorLabel: definition.behaviorLabel,
+    documentationUrl: definition.documentationUrl,
+    sourceLabel: definition.sourceLabel,
   };
 }
 
@@ -578,6 +651,7 @@ function createProductDefinition(id: ProductId): ProductDefinition {
   const metrics = Object.values(PRODUCT_CATALOG[id].metrics);
   return {
     ...metadata,
+    cadence: id === "pages" ? "snapshot" : "near-real-time",
     unavailableMetrics: () =>
       metrics.map((metric) =>
         unavailableMetric(

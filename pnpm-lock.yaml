@@ -4,10 +4,18 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  nanoid: 3.3.18
+  postcss: 8.5.26
+  undici: 7.29.0
+
 importers:
 
   .:
     dependencies:
+      cloudflare:
+        specifier: 7.1.0
+        version: 7.1.0
       jose:
         specifier: ^6.2.4
         version: 6.2.4
@@ -1142,6 +1150,10 @@ packages:
   cjs-module-lexer@1.2.3:
     resolution: {integrity: sha512-0TNiGstbQmCFwt4akjjBg5pLRTSyj/PkWQ1ZoO2zntmg9yLqSRxwEa4iCfQLGjqhiqBfOJa7W/E8wfGrTDmlZQ==}
 
+  cloudflare@7.1.0:
+    resolution: {integrity: sha512-eb6WtiAbhuqdWmBdVo6fuXQgEBkYjhOeujRDYLEUWEZIECuABvDLz2DUYTwpN/4KyFecM4JtMHgZn5prlFUjLg==}
+    hasBin: true
+
   color-convert@2.0.1:
     resolution: {integrity: sha512-RRECPsj7iu/xb5oKYcsFHSppFNnsj/52OVTRKb4zP5onXwVF3zVmmToNcOfGC+CRDpfK/U584fMg38ZHCaElKQ==}
     engines: {node: '>=7.0.0'}
@@ -1384,8 +1396,8 @@ packages:
     engines: {node: '>=22.0.0'}
     hasBin: true
 
-  nanoid@3.3.16:
-    resolution: {integrity: sha512-bzlKTyNJ7+LdGIIwy8ijFpIqEQIvafahV7eYykJ8Cvh42EdJeODoJ6gUJXpQJvej1BddH8OqTXZNE/KfbWAu8Q==}
+  nanoid@3.3.18:
+    resolution: {integrity: sha512-DTg4MJbGMWkfi6VZFdNt2/caMbQy4Ou+Op/hJQvGEWcnVfoA1QA+xzRKAzw9jD6+GVOOeYr/mIcuDSdug6F6+w==}
     engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
     hasBin: true
 
@@ -1426,8 +1438,8 @@ packages:
     resolution: {integrity: sha512-RvwwcruNjI1ncT5xRakeyS9Lf8lcItv34KD+aif+VH9kduAyfYBipGh12274xtenIPZ119/R9BdTBa8gAwSh0A==}
     engines: {node: '>=12'}
 
-  postcss@8.5.20:
-    resolution: {integrity: sha512-lW616l85ucIQL+FocMmL7pQFPqBmwejrCMg+iPxyImlrANNJG9NHq/RkyCZopDhd8C3LA03PHRJDjkbGu8vvug==}
+  postcss@8.5.26:
+    resolution: {integrity: sha512-u82N74LFzG8ca+dD8puPnplTXoGH4fTPpVGuIbt36G3qvNlkvfD0lEAZSxaly3KX8TS/L1A1gsCEmvKmBcVbkQ==}
     engines: {node: ^10 || ^12 || >=14}
 
   pretty-format@27.0.2:
@@ -1548,8 +1560,8 @@ packages:
   undici-types@8.3.0:
     resolution: {integrity: sha512-j375ScV60dom+YkPFIfTLcOiPxkN/buHz5GobjLhixFuANaNs3C9l4GmrWqejgXWJ7BbJcFYpTEUkS1Ge8bpZQ==}
 
-  undici@7.28.0:
-    resolution: {integrity: sha512-cRZYrTDwWznlnRiPjggAGxZXanty6M8RV1ff8Wm4LWXBp7/IG8v5DnOm74DtUBp9OONpK75YlPnIjQqX0dBDtA==}
+  undici@7.29.0:
+    resolution: {integrity: sha512-IDxfleLmmbSskfWSUATiN1nfn2rDuvnMOqb5CWR92iIfojA0Ud+ulOAAEQ57LPr9rWmsreUyf5lwyao+7GNNVw==}
     engines: {node: '>=20.18.1'}
 
   unenv@2.0.0-rc.24:
@@ -2445,6 +2457,8 @@ snapshots:
 
   cjs-module-lexer@1.2.3: {}
 
+  cloudflare@7.1.0: {}
+
   color-convert@2.0.1:
     dependencies:
       color-name: 1.1.4
@@ -2579,7 +2593,7 @@ snapshots:
       saxes: 6.0.0
       symbol-tree: 3.2.4
       tough-cookie: 6.0.2
-      undici: 7.28.0
+      undici: 7.29.0
       w3c-xmlserializer: 5.0.0
       webidl-conversions: 8.0.1
       whatwg-mimetype: 5.0.0
@@ -2669,7 +2683,7 @@ snapshots:
     dependencies:
       '@cspotcode/source-map-support': 0.8.1
       sharp: 0.35.2
-      undici: 7.28.0
+      undici: 7.29.0
       workerd: 1.20260722.1
       ws: 8.21.0
       youch: 4.1.0-beta.10
@@ -2677,7 +2691,7 @@ snapshots:
       - bufferutil
       - utf-8-validate
 
-  nanoid@3.3.16: {}
+  nanoid@3.3.18: {}
 
   obug@2.1.4: {}
 
@@ -2725,9 +2739,9 @@ snapshots:
 
   picomatch@4.0.5: {}
 
-  postcss@8.5.20:
+  postcss@8.5.26:
     dependencies:
-      nanoid: 3.3.16
+      nanoid: 3.3.18
       picocolors: 1.1.1
       source-map-js: 1.2.1
 
@@ -2890,7 +2904,7 @@ snapshots:
 
   undici-types@8.3.0: {}
 
-  undici@7.28.0: {}
+  undici@7.29.0: {}
 
   unenv@2.0.0-rc.24:
     dependencies:
@@ -2900,7 +2914,7 @@ snapshots:
     dependencies:
       lightningcss: 1.33.0
       picomatch: 4.0.5
-      postcss: 8.5.20
+      postcss: 8.5.26
       rolldown: 1.1.5
       tinyglobby: 0.2.17
     optionalDependencies:

@@ -1,3 +1,5 @@
+import { BaseUsage } from "cloudflare/resources/billing/usage";
+import { createClient } from "cloudflare/tree-shakable";
 import { z } from "zod";
 
 import {
@@ -7,6 +9,7 @@ import {
   type StoragePoint,
   type TimeWindows,
 } from "./lib/metrics";
+import { loadCachedJson, type ResponseCache } from "./cache";
 
 const CLOUDFLARE_API = "https://api.cloudflare.com/client/v4";
 const CLOUDFLARE_GRAPHQL = `${CLOUDFLARE_API}/graphql`;
@@ -15,8 +18,10 @@ const REST_PAGE_SIZE = 100;
 const MAX_REST_PAGES = 250;
 const PAGES_REST_PAGE_SIZE = 10;
 const PAGES_PROJECT_CONCURRENCY = 5;
+const BILLABLE_USAGE_CACHE_TTL_SECONDS = 60 * 60;
 
 const numberSchema = z.number().finite();
+const dateTimeSchema = z.iso.datetime({ offset: true });
 const graphQlEnvelopeSchema = z.object({
   data: z
     .object({
@@ -135,6 +140,52 @@ const pagesDeploymentSchema = z.object({
     .optional(),
 });
 
+const billableUsageInfoSchema = z.object({
+  covered: z.boolean(),
+  subscriptions: z.array(
+    z.object({
+      id: z.string(),
+      billing_cycle_anchor_timestamp: dateTimeSchema,
+      start_timestamp: dateTimeSchema,
+      end_timestamp: dateTimeSchema.optional(),
+    }),
+  ),
+});
+
+const billableUsageRowSchema = z.object({
+  BilledCost: numberSchema,
+  BillingAccountId: z.string(),
+  BillingAccountName: z.string().nullable(),
+  BillingCurrency: z.string(),
+  BillingPeriodStart: dateTimeSchema,
+  ChargeCategory: z.literal("Usage"),
+  ChargeClass: z.string().nullable(),
+  ChargeDescription: z.string().nullable(),
+  ChargePeriodEnd: dateTimeSchema,
+  ChargePeriodStart: dateTimeSchema,
+  ConsumedQuantity: numberSchema,
+  ConsumedUnit: z.string(),
+  ContractedCost: numberSchema,
+  CumulatedContractedCost: numberSchema,
+  CumulatedPricingQuantity: numberSchema,
+  EffectiveCost: numberSchema,
+  HostProviderName: z.string(),
+  InvoiceIssuerName: z.string(),
+  ListCost: numberSchema,
+  PricingQuantity: numberSchema,
+  PricingUnit: z.string(),
+  ServiceName: z.string(),
+  ServiceProviderName: z.string(),
+  ServiceFamilyName: z.string().optional(),
+  SubscriptionId: z.string().nullable().optional(),
+  ZoneId: z.string().nullable().optional(),
+  ZoneName: z.string().nullable().optional(),
+});
+
+const billableUsageRawSchema = billableUsageInfoSchema.extend({
+  rows: z.array(billableUsageRowSchema),
+});
+
 export class CloudflareApiError extends Error {
   constructor(
     message: string,
@@ -149,6 +200,8 @@ export interface CloudflareClientOptions {
   accountId: string;
   apiToken: string;
   fetcher?: typeof fetch;
+  cache?: ResponseCache;
+  cacheOrigin?: string;
 }
 
 export interface WorkersUsageRaw {
@@ -191,28 +244,33 @@ export interface PagesUsageRaw {
   failedProjects: number;
 }
 
-export interface PaygoUsageRawRow {
-  id: string;
-  service: string;
-  family: string;
-  consumed: number;
-  consumedUnit: string;
-  pricingQuantity: number;
-  cost: number;
-  currency: string;
-  periodStart: string | null;
-  periodEnd: string | null;
-}
+export type BillableUsageRaw = z.infer<typeof billableUsageRawSchema>;
 
 export class CloudflareClient {
   readonly #accountId: string;
   readonly #apiToken: string;
   readonly #fetcher: typeof fetch;
+  readonly #billingUsage: BaseUsage;
+  readonly #cache: ResponseCache | null;
+  readonly #billingCacheKey: string;
 
   constructor(options: CloudflareClientOptions) {
     this.#accountId = options.accountId;
     this.#apiToken = options.apiToken;
     this.#fetcher = (options.fetcher ?? fetch).bind(globalThis);
+    this.#cache = options.cache ?? null;
+    this.#billingCacheKey = new URL(
+      `/__internal/cache/v1/billable-usage/${encodeURIComponent(options.accountId)}`,
+      options.cacheOrigin ?? CLOUDFLARE_API,
+    ).toString();
+    this.#billingUsage = createClient({
+      resources: [BaseUsage],
+      apiToken: options.apiToken,
+      fetch: this.#fetcher,
+      timeout: 8_000,
+      maxRetries: 1,
+      logLevel: "off",
+    }).billing.usage;
   }
 
   async getWorkersUsage(windows: TimeWindows): Promise<WorkersUsageRaw> {
@@ -540,45 +598,28 @@ export class CloudflareClient {
     };
   }
 
-  async getPaygoUsage(): Promise<PaygoUsageRawRow[]> {
-    const result = await this.#restList(
-      `/accounts/${encodeURIComponent(this.#accountId)}/paygo-usage`,
-      z.record(z.string(), z.unknown()),
-    );
-    if (!result.complete) {
-      throw new CloudflareApiError("PayGo API 明细超过安全分页上限");
-    }
-    const rows = result.items;
+  async getBillableUsage(): Promise<BillableUsageRaw> {
+    return loadCachedJson({
+      cache: this.#cache,
+      key: this.#billingCacheKey,
+      source: "billable_usage_v1",
+      ttlSeconds: BILLABLE_USAGE_CACHE_TTL_SECONDS,
+      schema: billableUsageRawSchema,
+      load: async () => {
+        const info = billableUsageInfoSchema.parse(
+          await this.#billingUsage.getAccountUsageInfoV1({
+            account_id: this.#accountId,
+          }),
+        );
+        if (!info.covered) return { ...info, rows: [] };
 
-    return rows.map((row, index) => {
-      const service = stringField(row, "ServiceName", "service_name") || "Unknown";
-      const family =
-        stringField(row, "ServiceFamilyName", "service_family_name") || service;
-      const unit = stringField(row, "ConsumedUnit", "consumed_unit") || "unit";
-      const currency =
-        stringField(row, "BillingCurrency", "billing_currency") || "USD";
-      return {
-        id: `${service}:${family}:${unit}:${index}`,
-        service,
-        family,
-        consumed: numberField(row, "ConsumedQuantity", "consumed_quantity"),
-        consumedUnit: unit,
-        pricingQuantity: numberField(
-          row,
-          "PricingQuantity",
-          "pricing_quantity",
-        ),
-        cost: numberField(row, "ContractedCost", "contracted_cost"),
-        currency,
-        periodStart:
-          nullableStringField(row, "BillingPeriodStart", "billing_period_start") ??
-          nullableStringField(row, "ChargePeriodStart", "charge_period_start"),
-        periodEnd: nullableStringField(
-          row,
-          "ChargePeriodEnd",
-          "charge_period_end",
-        ),
-      };
+        const rows = z.array(billableUsageRowSchema).parse(
+          await this.#billingUsage.getAccountUsageV1({
+            account_id: this.#accountId,
+          }),
+        );
+        return { ...info, rows };
+      },
     });
   }
 
@@ -720,37 +761,4 @@ async function mapSettledWithConcurrency<T, R>(
 
 function sanitizeMessage(message: string | undefined): string {
   return (message ?? "").replace(/[\r\n]+/g, " ").slice(0, 180);
-}
-
-function stringField(
-  row: Record<string, unknown>,
-  ...keys: string[]
-): string {
-  for (const key of keys) {
-    const value = row[key];
-    if (typeof value === "string") return value;
-  }
-  return "";
-}
-
-function nullableStringField(
-  row: Record<string, unknown>,
-  ...keys: string[]
-): string | null {
-  return stringField(row, ...keys) || null;
-}
-
-function numberField(
-  row: Record<string, unknown>,
-  ...keys: string[]
-): number {
-  for (const key of keys) {
-    const value = row[key];
-    if (typeof value === "number" && Number.isFinite(value)) return value;
-    if (typeof value === "string") {
-      const parsed = Number(value);
-      if (Number.isFinite(parsed)) return parsed;
-    }
-  }
-  return 0;
 }

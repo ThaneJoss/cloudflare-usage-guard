@@ -64,31 +64,42 @@ export interface BillingUsageRow {
   id: string;
   service: string;
   family: string;
+  description: string | null;
   consumed: number;
   consumedUnit: string;
   pricingQuantity: number;
+  pricingUnit: string;
   cost: number;
   currency: string;
+  chargePeriodStart: string;
+  chargePeriodEnd: string;
+  zoneName: string | null;
+  subscriptionId: string | null;
 }
 
 export interface BillingUsage {
   available: boolean;
+  covered: boolean | null;
   error: string | null;
-  periodStart: string | null;
-  periodEnd: string | null;
+  billingPeriodStart: string | null;
+  dataThrough: string | null;
   totalCost: number | null;
   currency: string | null;
   rows: BillingUsageRow[];
 }
 
+export type SourceCadence = "near-real-time" | "snapshot" | "daily";
+
 export interface SourceHealth {
   id: string;
   label: string;
   status: "ok" | "partial" | "error";
+  cadence: SourceCadence;
+  dataAsOf: string | null;
   message: string;
 }
 
-export interface CoverageGap {
+export interface RealtimeCoverageGap {
   name: string;
   allowance: string;
   reason: string;
@@ -112,6 +123,6 @@ export interface UsagePayload {
   products: ProductUsage[];
   billing: BillingUsage;
   sources: SourceHealth[];
-  coverageGaps: CoverageGap[];
+  realtimeCoverageGaps: RealtimeCoverageGap[];
   disclaimer: string;
 }

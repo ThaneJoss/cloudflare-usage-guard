@@ -840,6 +840,26 @@
   text-align: right;
 }
 
+.billing-heading-actions {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.billing-dashboard-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--cyan);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.billing-dashboard-link:hover {
+  color: var(--text);
+}
+
 .billing-total > span {
   display: flex;
   align-items: center;
@@ -1110,6 +1130,18 @@
   color: var(--green);
   font-family: var(--font-mono);
   font-size: 11px;
+}
+
+.source-meta {
+  display: grid;
+  justify-items: end;
+  gap: 3px;
+}
+
+.source-cadence {
+  color: var(--faint);
+  font-family: var(--font-mono);
+  font-size: 10px;
 }
 
 .source-partial .source-label { color: var(--amber); }

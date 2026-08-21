@@ -1,8 +1,8 @@
 import type {
-  CoverageGap,
   MetricPeriod,
   MetricUnit,
   ProductUsage,
+  RealtimeCoverageGap,
 } from "./usage";
 
 export const QUOTA_CATALOG_AS_OF = "2026-07-27";
@@ -211,35 +211,35 @@ export function getProductMetadata(id: ProductId): ProductMetadata {
   return metadata;
 }
 
-export const COVERAGE_GAPS: ReadonlyArray<CoverageGap> = [
+export const REALTIME_COVERAGE_GAPS: ReadonlyArray<RealtimeCoverageGap> = [
   {
     name: "Workers AI",
     allowance: "10,000 neurons / UTC 日",
-    reason: "当前版本未接入按账户汇总的稳定公开用量接口。",
+    reason: "近实时额度层暂无稳定的账户级聚合；官方日级账单仍可能包含其计费用量。",
     documentationUrl: "https://developers.cloudflare.com/workers-ai/platform/pricing/",
   },
   {
     name: "Images",
     allowance: "5,000 unique transformations / 月",
-    reason: "转换计量口径需要结合 Images 专用分析数据，暂不混入统一估算。",
+    reason: "近实时额度层尚未整合 Images 专用分析；官方日级账单仍可能包含其计费用量。",
     documentationUrl: "https://developers.cloudflare.com/images/pricing/",
   },
   {
     name: "Vectorize",
     allowance: "30M queried + 5M stored dimensions / 月",
-    reason: "当前版本未接入 Vectorize 的账户级用量聚合。",
+    reason: "近实时额度层暂无账户级聚合；官方日级账单仍可能包含其计费用量。",
     documentationUrl: "https://developers.cloudflare.com/vectorize/platform/pricing/",
   },
   {
     name: "Browser Rendering",
     allowance: "10 browser minutes / UTC 日",
-    reason: "当前版本未接入 Browser Rendering 用量接口。",
+    reason: "近实时额度层尚未接入专用用量接口；官方日级账单仍可能包含其计费用量。",
     documentationUrl: "https://developers.cloudflare.com/browser-rendering/platform/pricing/",
   },
   {
     name: "Workflows",
     allowance: "3,000 steps / UTC 日",
-    reason: "产品计费仍在演进，当前只展示覆盖缺口以避免误报。",
+    reason: "近实时额度口径仍在演进；官方日级账单与额度风险需分开解读。",
     documentationUrl: "https://developers.cloudflare.com/workflows/reference/pricing/",
   },
 ];

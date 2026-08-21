@@ -53,7 +53,7 @@ export function DashboardOverview({
           数据源独立降级，单点权限缺口不会遮住整个账户。
         </p>
         <div className="overview-meta">
-          <span><Radio size={14} /> {demo ? "演示快照" : "实时账户快照"}</span>
+          <span><Radio size={14} /> {demo ? "演示快照" : "账户风险快照"}</span>
           <span>生成于 {formatDateTime(data.generatedAt)}</span>
         </div>
       </div>
@@ -117,13 +117,17 @@ export function DashboardOverview({
         />
         <SummaryCard
           icon={<CircleDollarSign size={18} />}
-          label="PayGo 当前累计"
+          label="用量费用当前累计"
           value={
             data.billing.totalCost === null || !data.billing.currency
               ? "—"
               : formatMoney(data.billing.totalCost, data.billing.currency)
           }
-          note={data.billing.available ? "精确账期 API" : "权限或账户暂不支持"}
+          note={
+            data.billing.available && data.billing.covered
+              ? "官方日级账单数据"
+              : "权限或账户暂不支持"
+          }
         />
       </div>
 

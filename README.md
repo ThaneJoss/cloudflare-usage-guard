@@ -1,7 +1,7 @@
 # Cloudflare Usage Guard
 
-面向 Cloudflare 账户的只读边缘资源指挥台。它把免费额度、数据源健康与可选的 PayGo
-明细整理成风险优先的单页控制台，在额度变成停服或费用前给出清晰信号。
+面向 Cloudflare 账户的只读边缘资源指挥台。它把近实时额度风险、数据源健康与官方
+可计费用量整理成风险优先的单页控制台，在额度变成停服或费用前给出清晰信号。
 
 生产架构保持两条严格分离的交付链：
 
@@ -17,7 +17,8 @@
   `https://api.cloudflare.thanejoss.com`。
 - 运行时契约：API Token 只存在于 Worker Secret；API Origin 由前端构建环境固定，
   浏览器不保存端点或凭据。
-- 数据契约：Zod Mini 在浏览器运行时校验完整响应，避免前后端版本漂移静默污染界面。
+- 数据契约：前后端复用同一份 Zod Mini 响应契约，官方账单响应另做严格校验，避免
+  字段缺失被静默解释成零费用。
 - 工程门禁：Oxlint、严格 TypeScript、Vitest、Testing Library、workerd
   运行时测试、产物预算和 Wrangler dry-run。
 
@@ -30,7 +31,9 @@
 - 免费额度卡支持全部、需要关注、达到即停、可能计费和数据不可用筛选。
 - 数据刷新失败时保留最后一次成功快照，并明确标记 `STALE`。
 - 单个采集器失败只降级对应产品，不遮挡其他账户数据。
-- PayGo 精确费用和 Analytics 额度估算分区展示，避免混淆统计口径。
+- 官方日级账单事实和 Analytics 近实时额度估算分区展示，避免混淆统计口径。
+- 只汇总成本驱动因素，并深链到 Cloudflare 原生账单中心，不在项目中复刻已有的
+  日成本图、筛选器、历史账期和预算提醒。
 
 ### 当前覆盖
 
@@ -42,11 +45,23 @@
 | R2 | Class A、Class B、当前存储快照 | UTC 月 / 当前 | Analytics 估算 |
 | Queues | 计费操作 | UTC 日 | Analytics 估算 |
 | Pages | 构建次数 | UTC 月 | REST API 计数 / 下限数据 |
-| PayGo | 当前账期明细 | 账期 | Billing API 精确值 |
+| 可计费用量 | 当前账期成本驱动因素 | 日级 / 账期 | Billable Usage API V1 官方值 |
 
-Workers AI、Images、Vectorize、Browser Rendering 和 Workflows 暂时只列出覆盖缺口，
-不会用缺少来源的数据生成“看起来合理”的假进度。额度目录统一维护在
+Workers AI、Images、Vectorize、Browser Rendering 和 Workflows 暂时只列为“近实时
+额度层”的覆盖缺口；它们的计费用量仍可能出现在官方日级账单层。项目不会用缺少来源的
+数据生成“看起来合理”的假进度。额度目录统一维护在
 `shared/quota-catalog.ts`，当前核对日期为 `2026-07-27`。
+
+### 数据层与缓存
+
+- 额度风险层：复用 Analytics GraphQL 与产品 REST API，按近实时或请求时快照展示。
+- 账单事实层：通过官方 TypeScript SDK `cloudflare@7.1.0` 调用
+  `GET /accounts/{account_id}/billable-usage/info` 和
+  `GET /accounts/{account_id}/billable-usage`。V1 仍为 Alpha，因此 SDK 固定精确版本，
+  响应必须通过完整运行时契约后才能进入界面。
+- Worker Cache API 对完整账户快照缓存 2 分钟，对变化更慢的官方账单原始数据缓存 1
+  小时。浏览器响应仍为 `no-store`，缓存只在 Access JWT 验证成功后读取。
+- 每个数据源同时返回健康状态、刷新节奏和 `dataAsOf`；日级账单不会被标成实时数据。
 
 ## 安全边界
 
@@ -54,7 +69,8 @@ Workers AI、Images、Vectorize、Browser Rendering 和 Workflows 暂时只列�
 - Worker 关闭 `workers.dev`，仅绑定 API 自定义域名。
 - Cloudflare Access 在边缘保护 API；Worker 再校验
   `Cf-Access-Jwt-Assertion` 的签名、签发方和应用 AUD。
-- CORS 只回显显式允许的 Origin，响应统一 `no-store`，错误不回传凭据或内部堆栈。
+- CORS 只回显显式允许的 Origin，浏览器响应统一 `no-store`，错误不回传凭据或内部
+  堆栈。服务端短缓存不保存 API Token，也不会绕过 Access 验证。
 - Vercel 通过 `vercel.json` 添加 CSP、点击劫持、MIME 嗅探、权限和来源策略。
 - 生产构建不输出 source map，静态 hash 资源使用不可变长缓存。
 - `/health` 在 Worker 代码层不要求 JWT，但生产 API 域名仍由 Cloudflare Access
@@ -67,7 +83,19 @@ Workers AI、Images、Vectorize、Browser Rendering 和 Workflows 暂时只列�
 
 - Account Analytics: Read
 - Pages: Read（Pages 卡片）
-- Billing: Read（可选 PayGo 明细）
+- Billing: Read（可选官方可计费用量）
+
+### 复用 Cloudflare 原生账单能力
+
+完整的日成本图、产品筛选、历史账期和发票对齐信息由
+[Billable Usage dashboard](https://developers.cloudflare.com/billing/manage/billable-usage/)
+提供；控制台中的“打开 Cloudflare 账单中心”会直接进入这一原生界面。
+
+总费用阈值请使用 Cloudflare 的
+[Budget alerts](https://developers.cloudflare.com/billing/manage/budget-alerts/)，不要在本项目
+重复实现邮件、收件人和账期重置逻辑。Budget alerts 只负责通知，不会暂停或限制用量；
+月度发票仍是最终权威记录。项目不会替用户创建或修改提醒，因为阈值和收件人属于账户
+策略决策。
 
 ## 本地开发
 
@@ -153,7 +181,8 @@ pnpm audit:dependencies
 
 - `pnpm check` 串行执行 Oxlint、六组 TypeScript 工程检查、Node/jsdom 单元与 UI
   测试，以及真实 workerd 运行时测试。
-- UI 测试验证风险筛选、进度条可访问名称、账单表语义和数据加载错误恢复。
+- UI 测试验证风险筛选、进度条可访问名称、成本驱动表语义和数据加载错误恢复。
+- API 测试验证 Billable Usage V1 严格契约、账户覆盖状态和两级缓存降级行为。
 - Worker 运行时测试验证健康检查、生产 CORS 和无 JWT 拒绝路径。
 - 前端预算为 JS gzip 90 KiB、CSS gzip 12 KiB，同时拒绝任何生产 `.map` 文件。
 - `worker:types:check` 防止 Wrangler 配置和生成的 `Env` 类型漂移。

@@ -34,20 +34,11 @@ describe("collectUsage", () => {
         partial: true,
         failedProjects: 1,
       }),
-      getPaygoUsage: vi.fn().mockResolvedValue([
-        {
-          id: "workers",
-          service: "Workers",
-          family: "Compute",
-          consumed: 10,
-          consumedUnit: "requests",
-          pricingQuantity: 2,
-          cost: 0.42,
-          currency: "USD",
-          periodStart: "2026-07-01T00:00:00.000Z",
-          periodEnd: "2026-08-01T00:00:00.000Z",
-        },
-      ]),
+      getBillableUsage: vi.fn().mockResolvedValue({
+        covered: true,
+        subscriptions: [],
+        rows: [billableRow()],
+      }),
     };
 
     const result = await collectUsage(
@@ -84,11 +75,21 @@ describe("collectUsage", () => {
     });
     expect(result.billing).toMatchObject({
       available: true,
+      covered: true,
       totalCost: 0.42,
       currency: "USD",
-      periodStart: "2026-07-01T00:00:00.000Z",
-      periodEnd: "2026-08-01T00:00:00.000Z",
+      billingPeriodStart: "2026-07-01T00:00:00.000Z",
+      dataThrough: "2026-07-21T00:00:00.000Z",
     });
+    expect(result.sources[0]).toMatchObject({
+      cadence: "near-real-time",
+      dataAsOf: now.toISOString(),
+    });
+    expect(result.sources.at(-1)).toMatchObject({
+      cadence: "daily",
+      dataAsOf: "2026-07-21T00:00:00.000Z",
+    });
+    expect(result.realtimeCoverageGaps.length).toBeGreaterThan(0);
     expect(client.getWorkersUsage).toHaveBeenCalledWith(getTimeWindows(now));
   });
 
@@ -118,7 +119,7 @@ describe("collectUsage", () => {
         partial: false,
         failedProjects: 0,
       }),
-      getPaygoUsage: vi.fn().mockRejectedValue(new Error("Billing Read required")),
+      getBillableUsage: vi.fn().mockRejectedValue(new Error("Billing Read required")),
     };
 
     const result = await collectUsage(
@@ -139,4 +140,96 @@ describe("collectUsage", () => {
       status: "error",
     });
   });
+
+  it("distinguishes an uncovered account from a Billing permission failure", async () => {
+    const client = zeroUsageClient();
+    client.getBillableUsage = vi.fn().mockResolvedValue({
+      covered: false,
+      subscriptions: [],
+      rows: [],
+    });
+
+    const result = await collectUsage(
+      { CF_ACCOUNT_ID: "account", CF_API_TOKEN: "token" },
+      new Date("2026-07-21T12:00:00.000Z"),
+      client,
+    );
+
+    expect(result.billing).toMatchObject({
+      available: true,
+      covered: false,
+      error: null,
+      rows: [],
+    });
+    expect(result.sources.at(-1)).toMatchObject({
+      status: "partial",
+      message: "此账户暂未被 Billable Usage API 覆盖",
+    });
+  });
 });
+
+function zeroUsageClient(): UsageClient {
+  return {
+    getWorkersUsage: vi.fn().mockResolvedValue({ requests: 0, errors: 0, scripts: 0 }),
+    getKvUsage: vi.fn().mockResolvedValue({
+      reads: 0,
+      writes: 0,
+      deletes: 0,
+      lists: 0,
+      otherOperations: 0,
+      storageBytes: 0,
+    }),
+    getD1Usage: vi.fn().mockResolvedValue({ rowsRead: 0, rowsWritten: 0, storageBytes: 0 }),
+    getR2Usage: vi.fn().mockResolvedValue({
+      classA: 0,
+      classB: 0,
+      freeOperations: 0,
+      unknownOperations: 0,
+      storageBytes: 0,
+    }),
+    getQueueUsage: vi.fn().mockResolvedValue({ billableOperations: 0 }),
+    getPagesUsage: vi.fn().mockResolvedValue({
+      builds: 0,
+      projectsChecked: 0,
+      partial: false,
+      failedProjects: 0,
+    }),
+    getBillableUsage: vi.fn().mockResolvedValue({
+      covered: true,
+      subscriptions: [],
+      rows: [],
+    }),
+  };
+}
+
+function billableRow() {
+  return {
+    BilledCost: 0.42,
+    BillingAccountId: "account",
+    BillingAccountName: "Example",
+    BillingCurrency: "USD",
+    BillingPeriodStart: "2026-07-01T00:00:00.000Z",
+    ChargeCategory: "Usage" as const,
+    ChargeClass: null,
+    ChargeDescription: "Workers requests",
+    ChargePeriodEnd: "2026-07-21T00:00:00.000Z",
+    ChargePeriodStart: "2026-07-20T00:00:00.000Z",
+    ConsumedQuantity: 10,
+    ConsumedUnit: "requests",
+    ContractedCost: 0.42,
+    CumulatedContractedCost: 0.42,
+    CumulatedPricingQuantity: 2,
+    EffectiveCost: 0.42,
+    HostProviderName: "Cloudflare",
+    InvoiceIssuerName: "Cloudflare",
+    ListCost: 0.42,
+    PricingQuantity: 2,
+    PricingUnit: "million requests",
+    ServiceName: "Workers",
+    ServiceProviderName: "Cloudflare",
+    ServiceFamilyName: "Compute",
+    SubscriptionId: "subscription-id",
+    ZoneId: null,
+    ZoneName: null,
+  };
+}
