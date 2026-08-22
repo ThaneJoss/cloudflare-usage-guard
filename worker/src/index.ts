@@ -1,5 +1,14 @@
+import type { UsagePayload } from "../../shared/usage";
+import { usagePayloadSchema } from "../../shared/usage-schema";
 import { verifyAccessJwt } from "./auth";
+import {
+  getDefaultCache,
+  loadCachedJson,
+  type ResponseCache,
+} from "./cache";
 import { collectUsage } from "./usage";
+
+const USAGE_SNAPSHOT_CACHE_TTL_SECONDS = 2 * 60;
 
 const SECURITY_HEADERS = {
   "Cache-Control": "no-store",
@@ -50,7 +59,7 @@ export default {
     }
 
     try {
-      const payload = await collectUsage(env);
+      const payload = await loadUsageSnapshot(request, env);
       return jsonResponse(payload, 200, allowedOrigin);
     } catch (error) {
       console.error(
@@ -67,6 +76,29 @@ export default {
     }
   },
 } satisfies ExportedHandler<Env>;
+
+export async function loadUsageSnapshot(
+  request: Request,
+  env: Pick<Env, "CF_ACCOUNT_ID" | "CF_API_TOKEN">,
+  cache: ResponseCache | null = getDefaultCache(),
+): Promise<UsagePayload> {
+  const origin = new URL(request.url).origin;
+  return loadCachedJson({
+    cache,
+    key: new URL(
+      `/__internal/cache/v2/usage/${encodeURIComponent(env.CF_ACCOUNT_ID)}`,
+      origin,
+    ).toString(),
+    source: "usage_snapshot",
+    ttlSeconds: USAGE_SNAPSHOT_CACHE_TTL_SECONDS,
+    schema: usagePayloadSchema,
+    load: () =>
+      collectUsage(env, new Date(), undefined, {
+        ...(cache ? { cache } : {}),
+        cacheOrigin: origin,
+      }),
+  });
+}
 
 function resolveAllowedOrigin(
   requestOrigin: string | null,

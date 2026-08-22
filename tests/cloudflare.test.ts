@@ -4,6 +4,7 @@ import {
   CloudflareApiError,
   CloudflareClient,
 } from "../worker/src/cloudflare";
+import type { ResponseCache } from "../worker/src/cache";
 import { getTimeWindows } from "../worker/src/lib/metrics";
 
 const WINDOWS = getTimeWindows(new Date("2026-07-21T12:00:00.000Z"));
@@ -21,6 +22,39 @@ function restResult(
     errors: [],
     result,
     result_info: { total_pages: totalPages },
+  };
+}
+
+function billableRow(overrides: Record<string, unknown> = {}) {
+  return {
+    BilledCost: 0.42,
+    BillingAccountId: "account-id",
+    BillingAccountName: "Example",
+    BillingCurrency: "USD",
+    BillingPeriodStart: "2026-07-01T00:00:00.000Z",
+    ChargeCategory: "Usage",
+    ChargeClass: null,
+    ChargeDescription: "Workers requests",
+    ChargePeriodEnd: "2026-07-21T00:00:00.000Z",
+    ChargePeriodStart: "2026-07-20T00:00:00.000Z",
+    ConsumedQuantity: 12,
+    ConsumedUnit: "requests",
+    ContractedCost: 0.42,
+    CumulatedContractedCost: 0.42,
+    CumulatedPricingQuantity: 2,
+    EffectiveCost: 0.42,
+    HostProviderName: "Cloudflare",
+    InvoiceIssuerName: "Cloudflare",
+    ListCost: 0.42,
+    PricingQuantity: 2,
+    PricingUnit: "million requests",
+    ServiceName: "Workers",
+    ServiceProviderName: "Cloudflare",
+    ServiceFamilyName: "Compute",
+    SubscriptionId: "subscription-id",
+    ZoneId: null,
+    ZoneName: null,
+    ...overrides,
   };
 }
 
@@ -208,41 +242,62 @@ describe("CloudflareClient", () => {
     });
   });
 
-  it("paginates and normalizes PayGo rows", async () => {
+  it("uses the official Billable Usage V1 info and usage methods", async () => {
+    const cache = new MemoryResponseCache();
     const fetcher = vi.fn(async (input: RequestInfo | URL) => {
-      const page = new URL(String(input)).searchParams.get("page");
-      return json(
+      const url = new URL(String(input));
+      return url.pathname.endsWith("/billable-usage/info")
+        ? json(restResult({
+            covered: true,
+            subscriptions: [
+              {
+                id: "subscription-id",
+                billing_cycle_anchor_timestamp: "2026-07-01T00:00:00.000Z",
+                start_timestamp: "2026-01-01T00:00:00.000Z",
+              },
+            ],
+          }))
+        : json(restResult([billableRow()]));
+    });
+    const client = new CloudflareClient({
+      accountId: "account-id",
+      apiToken: "api-token",
+      fetcher: fetcher as typeof fetch,
+      cache,
+      cacheOrigin: "https://usage.example",
+    });
+
+    const result = await client.getBillableUsage();
+    const cached = await client.getBillableUsage();
+
+    expect(result).toMatchObject({
+      covered: true,
+      rows: [
         {
-          success: true,
-          errors: [],
-          result: [
-            page === "1"
-              ? {
-                  ServiceName: "Workers",
-                  ServiceFamilyName: "Compute",
-                  ConsumedQuantity: "12",
-                  ConsumedUnit: "requests",
-                  PricingQuantity: "2",
-                  ContractedCost: "0.42",
-                  BillingCurrency: "USD",
-                }
-              : {
-                  service_name: "R2",
-                  service_family_name: "Storage",
-                  consumed_quantity: 3,
-                  consumed_unit: "GB-month",
-                  pricing_quantity: 0,
-                  contracted_cost: 0,
-                  billing_currency: "USD",
-                },
-          ],
-          result_info: {
-            page: Number(page),
-            per_page: 1,
-            total_count: 2,
-          },
+          ServiceName: "Workers",
+          ServiceFamilyName: "Compute",
+          ConsumedQuantity: 12,
+          BilledCost: 0.42,
         },
-      );
+      ],
+    });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(cached).toEqual(result);
+    expect(cache.response?.headers.get("Cache-Control")).toBe(
+      "public, max-age=3600",
+    );
+    expect(fetcher.mock.calls.map(([input]) => new URL(String(input)).pathname)).toEqual([
+      "/client/v4/accounts/account-id/billable-usage/info",
+      "/client/v4/accounts/account-id/billable-usage",
+    ]);
+  });
+
+  it("does not invent defaults when a Billable Usage row violates the contract", async () => {
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const url = new URL(String(input));
+      return url.pathname.endsWith("/billable-usage/info")
+        ? json(restResult({ covered: true, subscriptions: [] }))
+        : json(restResult([billableRow({ BilledCost: "0.42" })]));
     });
     const client = new CloudflareClient({
       accountId: "account-id",
@@ -250,18 +305,27 @@ describe("CloudflareClient", () => {
       fetcher: fetcher as typeof fetch,
     });
 
-    const rows = await client.getPaygoUsage();
-
-    expect(rows).toHaveLength(2);
-    expect(rows[0]).toMatchObject({
-      service: "Workers",
-      family: "Compute",
-      consumed: 12,
-      pricingQuantity: 2,
-      cost: 0.42,
-      currency: "USD",
+    await expect(client.getBillableUsage()).rejects.toMatchObject({
+      name: "ZodError",
     });
-    expect(rows[1]).toMatchObject({ service: "R2", consumed: 3 });
+  });
+
+  it("uses coverage info without requesting rows for an uncovered account", async () => {
+    const fetcher = vi.fn(async () =>
+      json(restResult({ covered: false, subscriptions: [] })),
+    );
+    const client = new CloudflareClient({
+      accountId: "account-id",
+      apiToken: "api-token",
+      fetcher: fetcher as typeof fetch,
+    });
+
+    await expect(client.getBillableUsage()).resolves.toEqual({
+      covered: false,
+      subscriptions: [],
+      rows: [],
+    });
+    expect(fetcher).toHaveBeenCalledOnce();
   });
 
   it("surfaces GraphQL errors even when the data field is null", async () => {
@@ -285,3 +349,15 @@ describe("CloudflareClient", () => {
     );
   });
 });
+
+class MemoryResponseCache implements ResponseCache {
+  response: Response | null = null;
+
+  async match(): Promise<Response | undefined> {
+    return this.response?.clone();
+  }
+
+  async put(_request: Request, response: Response): Promise<void> {
+    this.response = response.clone();
+  }
+}

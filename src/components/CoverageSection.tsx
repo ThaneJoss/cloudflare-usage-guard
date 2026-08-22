@@ -11,7 +11,11 @@ import {
 import type { ReactNode } from "react";
 
 import type { SourceHealth, UsagePayload } from "../../shared/usage";
-import { sourceHealthLabel } from "../lib/usage";
+import {
+  formatDateTime,
+  sourceCadenceLabel,
+  sourceHealthLabel,
+} from "../lib/usage";
 
 export function CoverageSection({ data }: { data: UsagePayload }) {
   return (
@@ -34,7 +38,7 @@ export function CoverageSection({ data }: { data: UsagePayload }) {
           <div className="panel-heading">
             <span className="panel-icon"><Activity size={17} /></span>
             <div>
-              <span>LIVE SOURCES</span>
+              <span>SOURCE STATUS</span>
               <h3>数据源健康</h3>
             </div>
           </div>
@@ -50,11 +54,11 @@ export function CoverageSection({ data }: { data: UsagePayload }) {
             <span className="panel-icon"><CircleDashed size={17} /></span>
             <div>
               <span>COVERAGE MAP</span>
-              <h3>尚未自动采集</h3>
+              <h3>近实时额度尚未覆盖</h3>
             </div>
           </div>
           <div className="gap-list">
-            {data.coverageGaps.map((gap) => (
+            {data.realtimeCoverageGaps.map((gap) => (
               <a
                 key={gap.name}
                 href={gap.documentationUrl}
@@ -92,9 +96,15 @@ function SourceRow({ source }: { source: SourceHealth }) {
       </span>
       <div>
         <strong>{source.label}</strong>
-        <small>{source.message}</small>
+        <small>
+          {source.message}
+          {source.dataAsOf ? ` · 截至 ${formatDateTime(source.dataAsOf)}` : ""}
+        </small>
       </div>
-      <span className="source-label">{sourceHealthLabel(source.status)}</span>
+      <div className="source-meta">
+        <span className="source-cadence">{sourceCadenceLabel(source.cadence)}</span>
+        <span className="source-label">{sourceHealthLabel(source.status)}</span>
+      </div>
     </div>
   );
 }

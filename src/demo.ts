@@ -4,10 +4,10 @@ import type {
   UsagePayload,
 } from "../shared/usage";
 import {
-  COVERAGE_GAPS,
   getProductMetadata,
   PRODUCT_CATALOG,
   QUOTA_CATALOG_AS_OF,
+  REALTIME_COVERAGE_GAPS,
 } from "../shared/quota-catalog";
 
 const GB = 1_000_000_000;
@@ -19,6 +19,12 @@ export function createDemoPayload(): UsagePayload {
   ).toISOString();
   const monthEnd = new Date(
     Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1),
+  ).toISOString();
+  const billingPeriodStart = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
+  ).toISOString();
+  const dataThrough = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
   ).toISOString();
 
   const products: ProductUsage[] = [
@@ -97,9 +103,10 @@ export function createDemoPayload(): UsagePayload {
     products,
     billing: {
       available: true,
+      covered: true,
       error: null,
-      periodStart: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString(),
-      periodEnd: monthEnd,
+      billingPeriodStart,
+      dataThrough,
       totalCost: 0.42,
       currency: "USD",
       rows: [
@@ -107,21 +114,33 @@ export function createDemoPayload(): UsagePayload {
           id: "r2-demo",
           service: "R2",
           family: "R2 Storage",
+          description: "R2 标准存储",
           consumed: 6.42,
           consumedUnit: "GB-month",
           pricingQuantity: 0,
+          pricingUnit: "GB-month",
           cost: 0,
           currency: "USD",
+          chargePeriodStart: billingPeriodStart,
+          chargePeriodEnd: dataThrough,
+          zoneName: null,
+          subscriptionId: "demo-subscription",
         },
         {
           id: "workers-demo",
           service: "Workers",
           family: "Workers Paid",
+          description: "Workers 请求",
           consumed: 2_100_000,
           consumedUnit: "requests",
           pricingQuantity: 2.1,
+          pricingUnit: "million requests",
           cost: 0.42,
           currency: "USD",
+          chargePeriodStart: billingPeriodStart,
+          chargePeriodEnd: dataThrough,
+          zoneName: null,
+          subscriptionId: "demo-subscription",
         },
       ],
     },
@@ -132,15 +151,23 @@ export function createDemoPayload(): UsagePayload {
       "R2 Analytics",
       "Queues Analytics",
       "Pages Deployments",
-      "Billing PayGo API",
+      "Billing · Billable Usage API V1",
     ].map((label, index) => ({
       id: `demo-${index}`,
       label,
       status: "ok" as const,
+      cadence:
+        index === 6
+          ? "daily" as const
+          : index === 5
+            ? "snapshot" as const
+            : "near-real-time" as const,
+      dataAsOf: index === 6 ? dataThrough : now.toISOString(),
       message: "数据读取成功",
     })),
-    coverageGaps: [...COVERAGE_GAPS],
-    disclaimer: "这是演示数据。实际额度卡使用 Cloudflare Analytics/REST API 的运行数据估算，不等同于账单；所有日/月边界均按 UTC。",
+    realtimeCoverageGaps: [...REALTIME_COVERAGE_GAPS],
+    disclaimer:
+      "这是演示数据。实际额度卡用于估算近实时风险；可计费用量来自官方日级 Billable Usage API。所有日/月边界均按 UTC。",
   };
 }
 

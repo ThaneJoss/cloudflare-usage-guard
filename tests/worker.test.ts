@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createDemoPayload } from "../src/demo";
 import { verifyAccessJwt } from "../worker/src/auth";
-import worker from "../worker/src/index";
+import worker, { loadUsageSnapshot } from "../worker/src/index";
+import type { ResponseCache } from "../worker/src/cache";
 import { collectUsage } from "../worker/src/usage";
 
 vi.mock("../worker/src/auth", () => ({
@@ -53,6 +54,20 @@ describe("usage Worker HTTP API", () => {
       products: expect.any(Array),
     });
     expect(mockedCollectUsage).toHaveBeenCalledOnce();
+  });
+
+  it("reuses the authenticated account snapshot cache", async () => {
+    const cache = new MemoryResponseCache();
+    const request = new Request("https://usage.example/v1/usage");
+
+    const first = await loadUsageSnapshot(request, env, cache);
+    const second = await loadUsageSnapshot(request, env, cache);
+
+    expect(second).toEqual(first);
+    expect(mockedCollectUsage).toHaveBeenCalledOnce();
+    expect(cache.lastResponse?.headers.get("Cache-Control")).toBe(
+      "public, max-age=120",
+    );
   });
 
   it("rejects unauthorized and cross-origin requests before collection", async () => {
@@ -116,3 +131,15 @@ describe("usage Worker HTTP API", () => {
     expect(mockedCollectUsage).not.toHaveBeenCalled();
   });
 });
+
+class MemoryResponseCache implements ResponseCache {
+  lastResponse: Response | null = null;
+
+  async match(): Promise<Response | undefined> {
+    return this.lastResponse?.clone();
+  }
+
+  async put(_request: Request, response: Response): Promise<void> {
+    this.lastResponse = response.clone();
+  }
+}

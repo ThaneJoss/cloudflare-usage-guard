@@ -319,6 +319,10 @@
     justify-content: flex-start;
   }
 
+  .billing-heading-actions {
+    align-items: flex-start;
+  }
+
   .table-toolbar {
     align-items: flex-start;
     flex-direction: column;

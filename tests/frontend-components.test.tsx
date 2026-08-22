@@ -37,14 +37,35 @@ describe("控制台组件", () => {
     expect(screen.queryByRole("heading", { name: "R2" })).not.toBeInTheDocument();
   });
 
-  it("账单表拥有标题、列头和移动端数据标签", () => {
+  it("账单成本驱动表复用官方账单中心并保留可访问结构", () => {
     render(<BillingSection billing={createDemoPayload().billing} />);
 
     expect(
-      screen.getByRole("table", { name: "当前 PayGo 账期用量明细" }),
+      screen.getByRole("table", { name: "当前账期成本驱动因素" }),
     ).toBeVisible();
     expect(screen.getByRole("columnheader", { name: "费用" })).toBeVisible();
+    expect(
+      screen.getByRole("link", { name: /打开 Cloudflare 账单中心/ }),
+    ).toHaveAttribute(
+      "href",
+      "https://dash.cloudflare.com/?to=%2F%3Aaccount%2Fbilling",
+    );
     expect(screen.getAllByRole("row")).toHaveLength(3);
+  });
+
+  it("明确区分账单 API 未覆盖与权限错误", () => {
+    const billing = {
+      ...createDemoPayload().billing,
+      covered: false,
+      totalCost: null,
+      currency: null,
+      rows: [],
+    };
+
+    render(<BillingSection billing={billing} />);
+
+    expect(screen.getByText("此账户暂未纳入 API 覆盖")).toBeVisible();
+    expect(screen.queryByText(/Billing Read 权限/)).not.toBeInTheDocument();
   });
 
   it("数据加载失败时提供恢复操作，不再要求手工配置 API 地址", async () => {

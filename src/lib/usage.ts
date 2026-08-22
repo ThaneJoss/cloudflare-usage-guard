@@ -1,5 +1,3 @@
-import * as z from "zod/mini";
-
 import type {
   BillingUsage,
   MetricPeriod,
@@ -11,6 +9,7 @@ import type {
   UsagePayload,
   UsageStatus,
 } from "../../shared/usage";
+export { parseUsagePayload } from "../../shared/usage-schema";
 
 export type ProductFilter =
   | "all"
@@ -34,128 +33,6 @@ export const PRODUCT_FILTERS: ReadonlyArray<{
   { id: "paid-overage", label: "可能计费" },
   { id: "unavailable", label: "数据不可用" },
 ];
-
-const usageStatusSchema = z.enum([
-  "ok",
-  "watch",
-  "critical",
-  "exceeded",
-  "unavailable",
-]);
-const overageBehaviorSchema = z.enum([
-  "hard-stop",
-  "paid-overage",
-  "plan-dependent",
-]);
-const usagePrecisionSchema = z.enum([
-  "analytics-estimate",
-  "api-count",
-  "billing-exact",
-  "lower-bound",
-]);
-const metricPeriodSchema = z.enum(["day", "month", "current"]);
-const metricUnitSchema = z.enum([
-  "requests",
-  "operations",
-  "rows",
-  "bytes",
-  "builds",
-]);
-const nullableNumber = z.nullable(z.number());
-const nullableString = z.nullable(z.string());
-const nullableDateTime = z.nullable(z.iso.datetime());
-
-const usageMetricSchema = z.object({
-  id: z.string(),
-  label: z.string(),
-  used: nullableNumber,
-  limit: z.number(),
-  unit: metricUnitSchema,
-  period: metricPeriodSchema,
-  utilization: nullableNumber,
-  status: usageStatusSchema,
-  resetAt: nullableDateTime,
-  precision: usagePrecisionSchema,
-  note: nullableString,
-});
-
-const productUsageSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  eyebrow: z.string(),
-  description: z.string(),
-  behavior: overageBehaviorSchema,
-  behaviorLabel: z.string(),
-  documentationUrl: z.url(),
-  sourceLabel: z.string(),
-  available: z.boolean(),
-  partial: z.boolean(),
-  error: nullableString,
-  metrics: z.array(usageMetricSchema),
-  details: z.array(z.object({ label: z.string(), value: z.string() })),
-});
-
-const billingUsageSchema = z.object({
-  available: z.boolean(),
-  error: nullableString,
-  periodStart: nullableDateTime,
-  periodEnd: nullableDateTime,
-  totalCost: nullableNumber,
-  currency: nullableString,
-  rows: z.array(
-    z.object({
-      id: z.string(),
-      service: z.string(),
-      family: z.string(),
-      consumed: z.number(),
-      consumedUnit: z.string(),
-      pricingQuantity: z.number(),
-      cost: z.number(),
-      currency: z.string(),
-    }),
-  ),
-});
-
-const sourceHealthSchema = z.object({
-  id: z.string(),
-  label: z.string(),
-  status: z.enum(["ok", "partial", "error"]),
-  message: z.string(),
-});
-
-const usagePayloadSchema = z.object({
-  generatedAt: z.iso.datetime(),
-  quotaCatalogAsOf: z.iso.date(),
-  timezone: z.literal("UTC"),
-  summary: z.object({
-    overall: z.enum(["ok", "watch", "critical", "exceeded", "unknown"]),
-    trackedMetrics: z.number(),
-    attentionMetrics: z.number(),
-    unavailableProducts: z.number(),
-    healthySources: z.number(),
-    totalSources: z.number(),
-  }),
-  products: z.array(productUsageSchema),
-  billing: billingUsageSchema,
-  sources: z.array(sourceHealthSchema),
-  coverageGaps: z.array(
-    z.object({
-      name: z.string(),
-      allowance: z.string(),
-      reason: z.string(),
-      documentationUrl: z.url(),
-    }),
-  ),
-  disclaimer: z.string(),
-});
-
-export function parseUsagePayload(value: unknown): UsagePayload {
-  const parsed = usagePayloadSchema.safeParse(value);
-  if (!parsed.success) {
-    throw new Error("API 返回的数据结构不完整，请确认前后端版本一致。");
-  }
-  return parsed.data;
-}
 
 export function normalizeEndpoint(value: string): string {
   const normalized = value.trim().replace(/\/+$/, "");
@@ -315,14 +192,21 @@ export function periodLabel(period: MetricPeriod): string {
 }
 
 export function billingPeriodLabel(billing: BillingUsage): string {
-  if (!billing.periodStart || !billing.periodEnd) return "当前账期";
-  return `${formatDate(billing.periodStart)} — ${formatDate(billing.periodEnd)}`;
+  if (!billing.billingPeriodStart) return "当前账期";
+  if (!billing.dataThrough) return `${formatDate(billing.billingPeriodStart)} 起`;
+  return `${formatDate(billing.billingPeriodStart)} — 数据截至 ${formatDate(billing.dataThrough)}`;
 }
 
 export function sourceHealthLabel(status: SourceHealth["status"]): string {
   if (status === "ok") return "正常";
   if (status === "partial") return "部分数据";
   return "读取失败";
+}
+
+export function sourceCadenceLabel(cadence: SourceHealth["cadence"]): string {
+  if (cadence === "near-real-time") return "近实时";
+  if (cadence === "daily") return "日级";
+  return "快照";
 }
 
 export function precisionLabel(precision: UsageMetric["precision"]): string {
