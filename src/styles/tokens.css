@@ -1,57 +1,50 @@
 :root {
-  color: #f4f7f8;
-  background: #070a0d;
+  color: var(--text);
+  background: var(--bg);
   font-family:
     Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI",
     "PingFang SC", "Microsoft YaHei", sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
-  color-scheme: dark;
-
+  color-scheme: light;
   --font-display:
     Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI",
     "PingFang SC", "Microsoft YaHei", sans-serif;
   --font-mono:
     "SFMono-Regular", Consolas, "Liberation Mono", "Roboto Mono", monospace;
-
-  --bg: #070a0d;
-  --bg-elevated: #0b1015;
-  --surface: #10171d;
-  --surface-raised: #172129;
-  --surface-soft: #1a252e;
-  --line: #30404b;
-  --line-strong: #465967;
-  --text: #f4f7f8;
-  --text-soft: #d5dde1;
-  --muted: #b1bec5;
-  --faint: #94a5af;
-  --orange: #ff7a1a;
-  --orange-bright: #ffad70;
-  --orange-soft: #ff7a1a1c;
-  --cyan: #5de4ff;
-  --cyan-soft: #5de4ff16;
-  --green: #4ce0a3;
-  --green-soft: #4ce0a315;
-  --amber: #f6c453;
-  --amber-soft: #f6c45317;
-  --red: #ff6f78;
-  --red-soft: #ff6f7817;
-  --shadow-sm: 0 12px 36px #00000026;
-  --shadow-lg: 0 30px 90px #0000005c;
-  --radius-sm: 10px;
+  --bg: #f6f7f9;
+  --bg-elevated: #ffffff;
+  --surface: #ffffff;
+  --surface-raised: #eff4ff;
+  --surface-soft: #f1f3f6;
+  --line: #e2e6ec;
+  --line-strong: #b8c3d1;
+  --text: #182230;
+  --text-soft: #344054;
+  --muted: #526075;
+  --faint: #596579;
+  --accent: #2563eb;
+  --accent-strong: #1d4ed8;
+  --accent-soft: #eff4ff;
+  --info: #1d4ed8;
+  --info-soft: #eff4ff;
+  --green: #087443;
+  --green-soft: #ecfdf3;
+  --amber: #925500;
+  --amber-soft: #fff7e6;
+  --red: #b42332;
+  --red-soft: #fff1f3;
+  --shadow-sm: 0 1px 3px #1018280a;
+  --shadow-lg: 0 8px 24px #1018280d;
+  --radius-sm: 8px;
   --radius-md: 16px;
-  --radius-lg: 24px;
+  --radius-lg: 16px;
   --content-width: 1280px;
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @keyframes spin {
   to { transform: rotate(360deg); }
-}
-
-@keyframes breathe {
-  0%, 100% { opacity: 0.42; transform: scale(0.94); }
-  50% { opacity: 1; transform: scale(1.04); }
 }
 
 @keyframes load-shift {
