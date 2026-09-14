@@ -5,19 +5,17 @@
 html {
   scroll-behavior: smooth;
   scroll-padding-top: 96px;
+  scrollbar-gutter: stable;
 }
 
 body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  overflow-x: hidden;
-  background:
-    radial-gradient(circle at 82% -10%, #183343 0, transparent 28rem),
-    radial-gradient(circle at -8% 18%, #382112 0, transparent 24rem),
-    var(--bg);
+  overflow-x: visible;
   font-size: 16px;
   line-height: 1.5;
+  background: var(--bg);
 }
 
 body,
@@ -51,12 +49,12 @@ a {
 }
 
 ::selection {
-  color: #101419;
-  background: var(--cyan);
+  color: var(--text);
+  background: #dbeafe;
 }
 
 :focus-visible {
-  outline: 2px solid var(--cyan);
+  outline: 2px solid var(--info);
   outline-offset: 3px;
 }
 
@@ -94,8 +92,8 @@ svg {
   top: 12px;
   left: 12px;
   padding: 10px 14px;
-  color: var(--bg);
-  background: var(--cyan);
+  color: #fff;
+  background: var(--accent);
   border-radius: 8px;
   font-size: 13px;
   font-weight: 800;
@@ -116,11 +114,11 @@ svg {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  color: var(--orange-bright);
-  font-family: var(--font-mono);
-  font-size: 11px;
+  color: var(--accent-strong);
+  font-family: var(--font-display);
+  font-size: 12px;
   font-weight: 700;
-  letter-spacing: 0.17em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
 }
 
@@ -128,47 +126,18 @@ svg {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  color: var(--cyan);
-  font-family: var(--font-mono);
-  font-size: 11px;
+  color: var(--info);
+  font-family: var(--font-display);
+  font-size: 12px;
   font-weight: 700;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
 }
 
 .eyebrow-line {
   width: 34px;
   height: 1px;
-  background: linear-gradient(90deg, transparent, var(--cyan));
-}
-
-.live-wave {
-  position: relative;
-  width: 24px;
-  height: 12px;
-}
-
-.live-wave::before,
-.live-wave::after {
-  position: absolute;
-  content: "";
-}
-
-.live-wave::before {
-  inset: 5px 0 auto;
-  height: 1px;
-  background: var(--cyan);
-}
-
-.live-wave::after {
-  top: 2px;
-  left: 8px;
-  width: 6px;
-  height: 6px;
-  background: var(--bg);
-  border-top: 1px solid var(--cyan);
-  border-right: 1px solid var(--cyan);
-  transform: rotate(-45deg);
+  background: linear-gradient(90deg, transparent, var(--info));
 }
 
 .signal-dot {
@@ -195,12 +164,10 @@ svg {
 
 @media (prefers-contrast: more) {
   :root {
-    --surface: #111a21;
-    --surface-raised: #1c2831;
-    --line: #536672;
-    --line-strong: #738691;
-    --text-soft: #e5ebee;
-    --muted: #cad3d8;
-    --faint: #b5c1c8;
+    --line: #667085;
+    --line-strong: #344054;
+    --text-soft: #182230;
+    --muted: #344054;
+    --faint: #344054;
   }
 }

@@ -41,7 +41,6 @@ export function DashboardOverview({
     <section id="overview" className="overview-section" aria-labelledby="overview-title">
       <div className="overview-copy">
         <div className="eyebrow">
-          <span className="live-wave" aria-hidden="true" />
           Account telemetry / UTC
         </div>
         <h1 id="overview-title">
@@ -62,7 +61,6 @@ export function DashboardOverview({
         className={`posture-card status-${data.summary.overall}`}
         aria-label={`账户态势：${statusLabel(data.summary.overall)}`}
       >
-        <div className="posture-grid" aria-hidden="true" />
         <div className="posture-meter" style={meterStyle}>
           <div>
             {statusIcon(data.summary.overall)}
