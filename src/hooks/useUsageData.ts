@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { UsagePayload } from "../../shared/usage";
+import { clearAccessRecovery, fetchUsageResponse, recoverAccessSession } from "../lib/access-session";
 import { createDemoPayload } from "../demo";
 import { normalizeEndpoint, parseUsagePayload } from "../lib/usage";
 
@@ -57,12 +58,29 @@ export function useUsageData(): UsageDataController {
       setError(null);
       setPhase(mode === "refresh" && data ? "refreshing" : "loading");
 
+      function recoverSession(): boolean {
+        if (!navigator.onLine) return false;
+        try {
+          return recoverAccessSession(configuredEndpoint, window.location.href,
+            window.sessionStorage, (url) => window.location.replace(url));
+        } catch {
+          return false;
+        }
+      }
+
       try {
-        const response = await fetch(`${configuredEndpoint}/v1/usage`, {
-          credentials: "include",
-          headers: { Accept: "application/json" },
-          signal: AbortSignal.timeout(25_000),
-        });
+        const response = await fetchUsageResponse(
+          `${configuredEndpoint}/v1/usage`, AbortSignal.timeout(25_000),
+        );
+        if (requestId !== requestSequence.current) return;
+        const accessResponse = response.status === 401 || response.status === 403 ||
+          (response.ok && response.headers.get("Content-Type")?.includes("text/html"));
+        if (accessResponse) {
+          if (recoverSession()) return;
+          setError({ kind: "access", message: "API 会话验证未完成，请恢复 API 会话；若仍失败，请检查 Access 授权。" });
+          setPhase(data ? "ready" : "idle");
+          return;
+        }
         const body: unknown = await response.json().catch(() => null);
         if (requestId !== requestSequence.current) return;
 
@@ -81,10 +99,12 @@ export function useUsageData(): UsageDataController {
         const payload = parseUsagePayload(body);
         if (requestId !== requestSequence.current) return;
 
+        try { clearAccessRecovery(window.sessionStorage); } catch { /* Storage may be disabled. */ }
         setData(payload);
         setPhase("ready");
       } catch (caught) {
         if (requestId !== requestSequence.current) return;
+        if (caught instanceof TypeError && recoverSession()) return;
         setError(getRequestError(caught));
         setPhase(data ? "ready" : "idle");
       }
@@ -131,6 +151,9 @@ function getRequestError(caught: unknown): UsageLoadError {
     caught.message === "API 返回的数据结构不完整，请确认前后端版本一致。"
   ) {
     return { kind: "contract", message: caught.message };
+  }
+  if (caught instanceof TypeError) {
+    return { kind: "network", message: "无法连接用量 API，可能是网络异常或 API 域名的 Access 会话尚未建立。请恢复 API 会话后重试。" };
   }
   if (caught instanceof Error && caught.message) {
     return { kind: "network", message: caught.message };

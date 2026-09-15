@@ -92,7 +92,7 @@ describe("控制台组件", () => {
     ).toBeVisible();
     expect(screen.queryByLabelText("Worker API 地址")).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("link", { name: /检查 API 状态/ }),
+      screen.queryByRole("link", { name: /恢复 API 会话/ }),
     ).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "重新同步" }));
@@ -100,7 +100,7 @@ describe("控制台组件", () => {
 
     view.rerender(<DataLoadErrorScreen {...baseProps} error={accessError} />);
     expect(
-      screen.getByRole("link", { name: /检查 API 状态/ }),
-    ).toHaveAttribute("href", "https://api.example.com/v1/usage");
+      screen.getByRole("link", { name: /恢复 API 会话/ }),
+    ).toHaveAttribute("href", `https://api.example.com/v1/usage?access_session=1&return_to=${encodeURIComponent(window.location.href)}`);
   });
 });

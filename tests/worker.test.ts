@@ -56,6 +56,38 @@ describe("usage Worker HTTP API", () => {
     expect(mockedCollectUsage).toHaveBeenCalledOnce();
   });
 
+  it("验证 API 会话后只返回允许的站点，不采集数据", async () => {
+    const response = await worker.fetch(new Request(
+      "https://usage.example/v1/usage?access_session=1&return_to=" +
+      encodeURIComponent("https://dashboard.example/?view=usage#workers"),
+    ), env);
+    expect(response.status).toBe(303);
+    expect(response.headers.get("Location")).toBe("https://dashboard.example/?view=usage#workers");
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
+    expect(mockedVerifyAccessJwt).toHaveBeenCalledOnce();
+    expect(mockedCollectUsage).not.toHaveBeenCalled();
+  });
+
+  it.each(["https://attacker.example/", "https://dashboard.example.attacker.example/", "https://user:pass@dashboard.example/", "javascript:alert(1)", "/", ""])(
+    "拒绝不安全的会话返回地址 %s", async (returnTo) => {
+      const response = await worker.fetch(new Request(
+        "https://usage.example/v1/usage?access_session=1&return_to=" + encodeURIComponent(returnTo),
+      ), env);
+      expect(response.status).toBe(400);
+      expect(response.headers.get("Location")).toBeNull();
+      expect(mockedCollectUsage).not.toHaveBeenCalled();
+    },
+  );
+
+  it("会话恢复端点仍拒绝无效 JWT", async () => {
+    mockedVerifyAccessJwt.mockResolvedValue(false);
+    const response = await worker.fetch(new Request(
+      "https://usage.example/v1/usage?access_session=1&return_to=https://dashboard.example/",
+    ), env);
+    expect(response.status).toBe(403);
+    expect(response.headers.get("Location")).toBeNull();
+  });
+
   it("reuses the authenticated account snapshot cache", async () => {
     const cache = new MemoryResponseCache();
     const request = new Request("https://usage.example/v1/usage");

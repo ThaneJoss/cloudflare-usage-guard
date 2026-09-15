@@ -58,6 +58,28 @@ export default {
       );
     }
 
+    // A top-level visit lets Access establish its API-domain cookie before CORS fetches.
+    // Keep this on the same protected path and validate JWT before any redirect.
+    if (url.searchParams.get("access_session") === "1") {
+      let returnTo: URL;
+      try {
+        returnTo = new URL(url.searchParams.get("return_to") ?? "");
+      } catch {
+        return jsonResponse({ error: "返回地址无效" }, 400, allowedOrigin);
+      }
+      if (
+        !["https:", "http:"].includes(returnTo.protocol) ||
+        returnTo.username || returnTo.password ||
+        !resolveAllowedOrigin(returnTo.origin, env.ALLOWED_ORIGINS)
+      ) {
+        return jsonResponse({ error: "返回地址不在允许列表" }, 400, allowedOrigin);
+      }
+      return new Response(null, {
+        status: 303,
+        headers: { ...SECURITY_HEADERS, Location: returnTo.href },
+      });
+    }
+
     try {
       const payload = await loadUsageSnapshot(request, env);
       return jsonResponse(payload, 200, allowedOrigin);
