@@ -190,3 +190,19 @@ pnpm audit:dependencies
 
 设计语言、状态模型、响应式策略和无障碍约束见
 [`docs/design-system.md`](docs/design-system.md)。
+
+### 首次访问与 Access 会话恢复
+
+站点和 API 使用不同域名。登录站点不代表 API 域名已经具有 Access Cookie；
+首次跨域请求可能被 Access 登录跳转拦截，浏览器仅报告 `Failed to fetch`。
+前端对网络错误自动重试一次，仍失败或返回鉴权错误时，顶层导航到 API 的
+`/v1/usage?access_session=1&return_to=...`，由现有 Access 策略完成验证。
+Worker 验证 JWT 后仅返回 `ALLOWED_ORIGINS` 中的站点，不采集用量数据。
+
+每个 API Origin 在当前标签页中最多自动恢复一次，成功取得用量后清除标记，
+防止网络故障、权限不足或 Cookie 被禁用时无限跳转。离线或存储不可用时不自动导航，
+错误页保留手动「恢复 API 会话」操作。首次授权或会话过期时，Access 仍可能要求验证身份。
+
+部署顺序：先发布包含此恢复逻辑的 API Worker，再发布前端；API 的现有 Access
+应用须继续覆盖 `/v1/usage`，无需放宽策略或暴露 Cookie/服务令牌。
+参考：[Cloudflare Access CORS](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/cors/)。
