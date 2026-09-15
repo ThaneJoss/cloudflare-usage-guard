@@ -24,9 +24,8 @@ describe("首次 API 会话恢复", () => {
     vi.useFakeTimers();
     const fetchMock = vi.fn().mockRejectedValue(new TypeError("Failed to fetch"));
     vi.stubGlobal("fetch", fetchMock);
-    const pending = expect(fetchUsageResponse("https://api.example/v1/usage", new AbortController().signal)).rejects.toThrow("Failed to fetch");
-    await vi.advanceTimersByTimeAsync(500);
-    await pending;
+    const pending = fetchUsageResponse("https://api.example/v1/usage", new AbortController().signal);
+    await Promise.all([expect(pending).rejects.toThrow("Failed to fetch"), vi.advanceTimersByTimeAsync(500)]);
     expect(fetchMock).toHaveBeenCalledTimes(2);
     fetchMock.mockResolvedValue(new Response(null, { status: 403 }));
     await expect(fetchUsageResponse("https://api.example/v1/usage", new AbortController().signal)).resolves.toHaveProperty("status", 403);
@@ -38,10 +37,12 @@ describe("首次 API 会话恢复", () => {
     const controller = new AbortController();
     const fetchMock = vi.fn().mockRejectedValue(new TypeError("Failed to fetch"));
     vi.stubGlobal("fetch", fetchMock);
-    const pending = expect(fetchUsageResponse("https://api.example/v1/usage", controller.signal)).rejects.toHaveProperty("name", "AbortError");
+    const pending = fetchUsageResponse("https://api.example/v1/usage", controller.signal);
     await vi.advanceTimersByTimeAsync(0);
-    controller.abort();
-    await pending;
+    await Promise.all([
+      expect(pending).rejects.toHaveProperty("name", "AbortError"),
+      Promise.resolve().then(() => controller.abort()),
+    ]);
     await vi.advanceTimersByTimeAsync(500);
     expect(fetchMock).toHaveBeenCalledOnce();
   });

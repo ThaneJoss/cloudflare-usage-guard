@@ -2,27 +2,27 @@ const RECOVERY_KEY = "usage-guard:access-recovery";
 
 /** Retry a transient cold-start failure once; HTTP errors are handled by the caller. */
 export async function fetchUsageResponse(url: string, signal: AbortSignal): Promise<Response> {
-  for (let attempt = 0; ; attempt += 1) {
-    try {
-      return await fetch(url, {
-        credentials: "include",
-        headers: { Accept: "application/json" },
-        signal,
-      });
-    } catch (error) {
-      if (!(error instanceof TypeError) || attempt > 0 || signal.aborted) throw error;
-      await new Promise<void>((resolve, reject) => {
-        const abort = () => {
-          clearTimeout(timer);
-          reject(signal.reason);
-        };
-        const timer = setTimeout(() => {
-          signal.removeEventListener("abort", abort);
-          resolve();
-        }, 500);
-        signal.addEventListener("abort", abort, { once: true });
-      });
-    }
+  const request = () => fetch(url, {
+    credentials: "include",
+    headers: { Accept: "application/json" },
+    signal,
+  });
+  try {
+    return await request();
+  } catch (error) {
+    if (!(error instanceof TypeError) || signal.aborted) throw error;
+    await new Promise<void>((resolve, reject) => {
+      const abort = () => {
+        clearTimeout(timer);
+        reject(signal.reason);
+      };
+      const timer = setTimeout(() => {
+        signal.removeEventListener("abort", abort);
+        resolve();
+      }, 500);
+      signal.addEventListener("abort", abort, { once: true });
+    });
+    return request();
   }
 }
 
