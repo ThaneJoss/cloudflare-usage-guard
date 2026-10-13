@@ -165,6 +165,13 @@ Vercel 不注入 `WORKERS_CI=1`，因此 `pnpm run build` 执行 Vite 前端构�
 
 ## 质量验证
 
+GitHub Actions 的 `.github/workflows/ci.yml` 统一调用
+`ThaneJoss/github-ci/.github/workflows/ci.yml@89624ba02d911171a634ddeb4848c298f3b1c842`。
+通用 CI 根据 `.node-version`、`packageManager` 和锁文件自动安装依赖，发现并执行
+`lint`、`typecheck`、`test`、`build` 等标准脚本及依赖审计；未配置项目专属步骤。
+产物预算、单独 Worker 构建、Worker 类型漂移与 Wrangler dry-run 不再由 CI 单独执行，
+对应脚本仍可在本地使用。具体执行、失败和未运行的检查以 Actions 结果为准。
+
 一次执行完整本地门禁：
 
 ```bash

@@ -94,7 +94,7 @@ Cloudflare Usage Guard 不是营销页，也不是带装饰图表的账单复刻
 - hash 静态资源使用一年不可变缓存。
 - HTML 和 API 响应不做不可变缓存。
 
-`scripts/check-bundle.mjs` 在 CI 中强制执行预算，依赖升级导致体积回归时会直接失败。
+`pnpm check:bundle` 可在本地构建后检查预算。通用 CI 不再单独执行产物预算检查。
 
 ## 组件与文件边界
 
