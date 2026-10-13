@@ -23,7 +23,7 @@ jobs:
           run_install: false
       - uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
@@ -33,3 +33,17 @@ jobs:
       - run: pnpm worker:types:check
       - run: pnpm worker:dry-run
       - run: pnpm audit:dependencies
+      - name: 安装 Chromium
+        run: pnpm exec playwright install --with-deps chromium
+      - name: 验证桌面与移动端浏览器交互及无障碍
+        run: pnpm test:e2e
+      - name: 保存浏览器检查报告
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: browser-checks
+          path: |
+            playwright-report
+            test-results
+          if-no-files-found: ignore
+          retention-days: 7

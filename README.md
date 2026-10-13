@@ -20,7 +20,7 @@
 - 数据契约：前后端复用同一份 Zod Mini 响应契约，官方账单响应另做严格校验，避免
   字段缺失被静默解释成零费用。
 - 工程门禁：Oxlint、严格 TypeScript、Vitest、Testing Library、workerd
-  运行时测试、产物预算和 Wrangler dry-run。
+  运行时测试、Playwright/axe 浏览器验收、产物预算和 Wrangler dry-run。
 
 ## 产品能力
 
@@ -103,7 +103,7 @@ Workers AI、Images、Vectorize、Browser Rendering 和 Workflows 暂时只列�
 字段固定了主版本选择。
 
 ```bash
-pnpm install
+pnpm install --frozen-lockfile
 cp .dev.vars.example .dev.vars
 pnpm dev:worker
 ```
@@ -175,18 +175,27 @@ WORKERS_CI=1 pnpm build
 pnpm worker:types:check
 pnpm worker:dry-run
 pnpm audit:dependencies
+pnpm exec playwright install chromium
+pnpm test:e2e
 ```
 
 其中：
 
-- `pnpm check` 串行执行 Oxlint、六组 TypeScript 工程检查、Node/jsdom 单元与 UI
+- `pnpm check` 串行执行 Oxlint、七组 TypeScript 工程检查、Node/jsdom 单元与 UI
   测试，以及真实 workerd 运行时测试。
 - UI 测试验证风险筛选、进度条可访问名称、成本驱动表语义和数据加载错误恢复。
+- `pnpm test:e2e` 在已构建的 `dist/` 上执行桌面与移动端 Chromium 验收，检查
+  风险筛选、键盘跳转、横向溢出、账单列标题和 axe 无障碍规则。浏览器仅访问
+  本地预览，使用演示数据或拦截的 API 响应，不需要 Access 会话或 Cloudflare 凭据。
 - API 测试验证 Billable Usage V1 严格契约、账户覆盖状态和两级缓存降级行为。
 - Worker 运行时测试验证健康检查、生产 CORS 和无 JWT 拒绝路径。
 - 前端预算为 JS gzip 90 KiB、CSS gzip 12 KiB，同时拒绝任何生产 `.map` 文件。
 - `worker:types:check` 防止 Wrangler 配置和生成的 `Env` 类型漂移。
 - `worker:dry-run` 证明 API 包不包含前端 assets，并显示预期的 5 个绑定。
+
+`.github/workflows/ci.yml` 在每个 PR 和 `main` 推送上执行上述门禁。CI 从
+`.node-version` 读取 Node.js 版本，并安装 Chromium 所需的系统依赖；浏览器报告和
+截图保存在当前工作流的 Actions artifacts，失败时另保留 trace 以便复核。
 
 设计语言、状态模型、响应式策略和无障碍约束见
 [`docs/design-system.md`](docs/design-system.md)。

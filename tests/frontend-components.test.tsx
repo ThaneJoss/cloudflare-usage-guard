@@ -53,6 +53,30 @@ describe("控制台组件", () => {
     expect(screen.getAllByRole("row")).toHaveLength(3);
   });
 
+  it("超额进度值保持在量程内，读屏仍能获取真实超额比例", () => {
+    const payload = createDemoPayload();
+    const workers = payload.products.find((product) => product.id === "workers")!;
+    const metric = workers.metrics[0]!;
+
+    render(
+      <UsageSection
+        products={[{
+          ...workers,
+          metrics: [{ ...metric, used: 125_000, utilization: 125, status: "exceeded" }],
+        }]}
+        filter="all"
+        onFilterChange={vi.fn()}
+      />,
+    );
+
+    const progress = screen.getByRole("progressbar", { name: `${metric.label} 使用率` });
+    expect(progress).toHaveAttribute("aria-valuemin", "0");
+    expect(progress).toHaveAttribute("aria-valuemax", "100");
+    expect(progress).toHaveAttribute("aria-valuenow", "100");
+    expect(progress).toHaveAttribute("aria-valuetext", "125%");
+    expect(screen.getByText("125%")).toBeVisible();
+  });
+
   it("明确区分账单 API 未覆盖与权限错误", () => {
     const billing = {
       ...createDemoPayload().billing,
