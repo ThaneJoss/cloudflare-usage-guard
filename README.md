@@ -165,6 +165,14 @@ Vercel 不注入 `WORKERS_CI=1`，因此 `pnpm run build` 执行 Vite 前端构�
 
 ## 质量验证
 
+GitHub Actions 的 `.github/workflows/ci.yml` 统一调用
+`ThaneJoss/github-ci/.github/workflows/ci.yml@89624ba02d911171a634ddeb4848c298f3b1c842`。
+通用 CI 根据 `.node-version`、`packageManager` 和锁文件自动安装依赖，发现并执行
+`lint`、`typecheck`、`test:ci`、`build` 及依赖审计。工作流调用文件保留单一固定引用，
+项目测试入口通过 `package.json` 中的标准 `test:ci` 脚本声明。
+产物预算、单独 Worker 构建、Worker 类型漂移与 Wrangler dry-run 不再由 CI 单独执行，
+对应脚本仍可在本地使用。具体执行、失败和未运行的检查以 Actions 结果为准。
+
 一次执行完整本地门禁：
 
 ```bash
@@ -183,6 +191,10 @@ pnpm test:e2e
 
 - `pnpm check` 串行执行 Oxlint、七组 TypeScript 工程检查、Node/jsdom 单元与 UI
   测试，以及真实 workerd 运行时测试。
+- `pnpm test:ci` 是通用 CI 优先发现的测试入口：先执行 `pnpm test`，再构建前端、
+  安装 Chromium，最后执行 `pnpm test:e2e`。CI 使用 GitHub Ubuntu runner 已有的
+  浏览器系统库；缺少运行依赖时浏览器启动会失败。浏览器测试前单独构建 `dist/`，
+  因为通用模板在测试之后才执行标准 `build` 脚本。
 - UI 测试验证风险筛选、进度条可访问名称、成本驱动表语义和数据加载错误恢复。
 - `pnpm test:e2e` 在已构建的 `dist/` 上执行桌面与移动端 Chromium 验收，检查
   风险筛选、键盘跳转、横向溢出、账单列标题和 axe 无障碍规则。浏览器仅访问
@@ -193,9 +205,10 @@ pnpm test:e2e
 - `worker:types:check` 防止 Wrangler 配置和生成的 `Env` 类型漂移。
 - `worker:dry-run` 证明 API 包不包含前端 assets，并显示预期的 5 个绑定。
 
-`.github/workflows/ci.yml` 在每个 PR 和 `main` 推送上执行上述门禁。CI 从
-`.node-version` 读取 Node.js 版本，下载 Chromium 并使用 Ubuntu runner 已有的系统库；浏览器报告和
-截图保存在当前工作流的 Actions artifacts，失败时另保留 trace 以便复核。
+`.github/workflows/ci.yml` 在推送、PR、合并队列及手动触发时运行通用 CI。
+浏览器检查结果可在 Actions 日志中查看；通用模板不上传浏览器报告、截图或 trace
+作为 artifacts。本地执行 `pnpm test:e2e` 后，可在 `playwright-report/` 查看 HTML
+报告，在 `test-results/` 查看截图与失败时保留的 trace。
 
 设计语言、状态模型、响应式策略和无障碍约束见
 [`docs/design-system.md`](docs/design-system.md)。
