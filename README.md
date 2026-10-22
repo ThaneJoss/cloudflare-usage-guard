@@ -192,8 +192,9 @@ pnpm test:e2e
 - `pnpm check` 串行执行 Oxlint、七组 TypeScript 工程检查、Node/jsdom 单元与 UI
   测试，以及真实 workerd 运行时测试。
 - `pnpm test:ci` 是通用 CI 优先发现的测试入口：先执行 `pnpm test`，再构建前端、
-  安装 Chromium 及其系统依赖，最后执行 `pnpm test:e2e`。浏览器测试前单独构建
-  `dist/`，因为通用模板在测试之后才执行标准 `build` 脚本。
+  安装 Chromium，最后执行 `pnpm test:e2e`。CI 使用 GitHub Ubuntu runner 已有的
+  浏览器系统库；缺少运行依赖时浏览器启动会失败。浏览器测试前单独构建 `dist/`，
+  因为通用模板在测试之后才执行标准 `build` 脚本。
 - UI 测试验证风险筛选、进度条可访问名称、成本驱动表语义和数据加载错误恢复。
 - `pnpm test:e2e` 在已构建的 `dist/` 上执行桌面与移动端 Chromium 验收，检查
   风险筛选、键盘跳转、横向溢出、账单列标题和 axe 无障碍规则。浏览器仅访问

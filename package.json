@@ -15,7 +15,7 @@
     "lint": "oxlint .",
     "typecheck": "tsc -p tsconfig.app.json && tsc -p tsconfig.worker.json && tsc -p tsconfig.node.json && tsc -p tsconfig.test.json && tsc -p tsconfig.test-node.json && tsc -p tsconfig.test-worker.json && tsc -p tsconfig.e2e.json",
     "test": "pnpm test:unit && pnpm test:worker-runtime",
-    "test:ci": "pnpm test && pnpm build:frontend && pnpm exec playwright install --with-deps chromium && pnpm test:e2e",
+    "test:ci": "pnpm test && pnpm build:frontend && pnpm exec playwright install chromium && pnpm test:e2e",
     "test:unit": "vitest run --config vitest.config.ts",
     "test:worker-runtime": "vitest run --config vitest.worker.config.ts",
     "test:e2e": "playwright test",
