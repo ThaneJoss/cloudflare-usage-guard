@@ -194,7 +194,7 @@ pnpm test:e2e
 - `worker:dry-run` 证明 API 包不包含前端 assets，并显示预期的 5 个绑定。
 
 `.github/workflows/ci.yml` 在每个 PR 和 `main` 推送上执行上述门禁。CI 从
-`.node-version` 读取 Node.js 版本，并安装 Chromium 所需的系统依赖；浏览器报告和
+`.node-version` 读取 Node.js 版本，下载 Chromium 并使用 Ubuntu runner 已有的系统库；浏览器报告和
 截图保存在当前工作流的 Actions artifacts，失败时另保留 trace 以便复核。
 
 设计语言、状态模型、响应式策略和无障碍约束见

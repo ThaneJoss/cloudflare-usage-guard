@@ -34,7 +34,7 @@ jobs:
       - run: pnpm worker:dry-run
       - run: pnpm audit:dependencies
       - name: 安装 Chromium
-        run: pnpm exec playwright install --with-deps chromium
+        run: pnpm exec playwright install chromium
       - name: 验证桌面与移动端浏览器交互及无障碍
         run: pnpm test:e2e
       - name: 保存浏览器检查报告
