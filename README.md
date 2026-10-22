@@ -20,7 +20,7 @@
 - 数据契约：前后端复用同一份 Zod Mini 响应契约，官方账单响应另做严格校验，避免
   字段缺失被静默解释成零费用。
 - 工程门禁：Oxlint、严格 TypeScript、Vitest、Testing Library、workerd
-  运行时测试、产物预算和 Wrangler dry-run。
+  运行时测试、Playwright/axe 浏览器验收、产物预算和 Wrangler dry-run。
 
 ## 产品能力
 
@@ -103,7 +103,7 @@ Workers AI、Images、Vectorize、Browser Rendering 和 Workflows 暂时只列�
 字段固定了主版本选择。
 
 ```bash
-pnpm install
+pnpm install --frozen-lockfile
 cp .dev.vars.example .dev.vars
 pnpm dev:worker
 ```
@@ -168,7 +168,8 @@ Vercel 不注入 `WORKERS_CI=1`，因此 `pnpm run build` 执行 Vite 前端构�
 GitHub Actions 的 `.github/workflows/ci.yml` 统一调用
 `ThaneJoss/github-ci/.github/workflows/ci.yml@89624ba02d911171a634ddeb4848c298f3b1c842`。
 通用 CI 根据 `.node-version`、`packageManager` 和锁文件自动安装依赖，发现并执行
-`lint`、`typecheck`、`test`、`build` 等标准脚本及依赖审计；未配置项目专属步骤。
+`lint`、`typecheck`、`test:ci`、`build` 及依赖审计。工作流调用文件保留单一固定引用，
+项目测试入口通过 `package.json` 中的标准 `test:ci` 脚本声明。
 产物预算、单独 Worker 构建、Worker 类型漂移与 Wrangler dry-run 不再由 CI 单独执行，
 对应脚本仍可在本地使用。具体执行、失败和未运行的检查以 Actions 结果为准。
 
@@ -182,18 +183,31 @@ WORKERS_CI=1 pnpm build
 pnpm worker:types:check
 pnpm worker:dry-run
 pnpm audit:dependencies
+pnpm exec playwright install chromium
+pnpm test:e2e
 ```
 
 其中：
 
-- `pnpm check` 串行执行 Oxlint、六组 TypeScript 工程检查、Node/jsdom 单元与 UI
+- `pnpm check` 串行执行 Oxlint、七组 TypeScript 工程检查、Node/jsdom 单元与 UI
   测试，以及真实 workerd 运行时测试。
+- `pnpm test:ci` 是通用 CI 优先发现的测试入口：先执行 `pnpm test`，再构建前端、
+  安装 Chromium 及其系统依赖，最后执行 `pnpm test:e2e`。浏览器测试前单独构建
+  `dist/`，因为通用模板在测试之后才执行标准 `build` 脚本。
 - UI 测试验证风险筛选、进度条可访问名称、成本驱动表语义和数据加载错误恢复。
+- `pnpm test:e2e` 在已构建的 `dist/` 上执行桌面与移动端 Chromium 验收，检查
+  风险筛选、键盘跳转、横向溢出、账单列标题和 axe 无障碍规则。浏览器仅访问
+  本地预览，使用演示数据或拦截的 API 响应，不需要 Access 会话或 Cloudflare 凭据。
 - API 测试验证 Billable Usage V1 严格契约、账户覆盖状态和两级缓存降级行为。
 - Worker 运行时测试验证健康检查、生产 CORS 和无 JWT 拒绝路径。
 - 前端预算为 JS gzip 90 KiB、CSS gzip 12 KiB，同时拒绝任何生产 `.map` 文件。
 - `worker:types:check` 防止 Wrangler 配置和生成的 `Env` 类型漂移。
 - `worker:dry-run` 证明 API 包不包含前端 assets，并显示预期的 5 个绑定。
+
+`.github/workflows/ci.yml` 在推送、PR、合并队列及手动触发时运行通用 CI。
+浏览器检查结果可在 Actions 日志中查看；通用模板不上传浏览器报告、截图或 trace
+作为 artifacts。本地执行 `pnpm test:e2e` 后，可在 `playwright-report/` 查看 HTML
+报告，在 `test-results/` 查看截图与失败时保留的 trace。
 
 设计语言、状态模型、响应式策略和无障碍约束见
 [`docs/design-system.md`](docs/design-system.md)。

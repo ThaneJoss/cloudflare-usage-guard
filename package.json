@@ -13,10 +13,12 @@
     "check": "pnpm lint && pnpm typecheck && pnpm test",
     "check:bundle": "node scripts/check-bundle.mjs",
     "lint": "oxlint .",
-    "typecheck": "tsc -p tsconfig.app.json && tsc -p tsconfig.worker.json && tsc -p tsconfig.node.json && tsc -p tsconfig.test.json && tsc -p tsconfig.test-node.json && tsc -p tsconfig.test-worker.json",
+    "typecheck": "tsc -p tsconfig.app.json && tsc -p tsconfig.worker.json && tsc -p tsconfig.node.json && tsc -p tsconfig.test.json && tsc -p tsconfig.test-node.json && tsc -p tsconfig.test-worker.json && tsc -p tsconfig.e2e.json",
     "test": "pnpm test:unit && pnpm test:worker-runtime",
+    "test:ci": "pnpm test && pnpm build:frontend && pnpm exec playwright install --with-deps chromium && pnpm test:e2e",
     "test:unit": "vitest run --config vitest.config.ts",
     "test:worker-runtime": "vitest run --config vitest.worker.config.ts",
+    "test:e2e": "playwright test",
     "test:coverage": "vitest run --config vitest.config.ts --coverage",
     "test:watch": "vitest",
     "worker:types": "wrangler types worker/worker-configuration.d.ts",
@@ -40,7 +42,9 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.12.1",
     "@cloudflare/vitest-pool-workers": "^0.18.8",
+    "@playwright/test": "1.62.0",
     "@testing-library/jest-dom": "^7.0.0",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
@@ -48,13 +52,13 @@
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.4",
-    "@vitest/coverage-v8": "^4.1.10",
+    "@vitest/coverage-v8": "^4.1.12",
     "jsdom": "^29.1.1",
     "oxlint": "^1.75.0",
     "oxlint-tsgolint": "^7.0.2001",
     "typescript": "^7.0.2",
-    "vite": "^8.1.5",
-    "vitest": "^4.1.10",
+    "vite": "^8.1.6",
+    "vitest": "^4.1.12",
     "wrangler": "^4.114.0"
   }
 }

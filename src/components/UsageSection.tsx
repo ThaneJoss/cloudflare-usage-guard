@@ -175,7 +175,7 @@ function MetricRow({ metric }: { metric: UsageMetric }) {
       : {
           "aria-valuemin": 0,
           "aria-valuemax": 100,
-          "aria-valuenow": Math.round(utilization),
+          "aria-valuenow": Math.round(fill),
           "aria-valuetext": `${formatPercent(utilization)}%`,
         };
 
