@@ -1,54 +1,67 @@
 // @vitest-environment jsdom
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createDemoPayload } from "../src/demo";
-import { recoverAccessSession } from "../src/lib/access-session";
+import { useUsageData } from "../src/hooks/useUsageData";
 
-vi.mock("../src/lib/access-session", async (importOriginal) => ({
-  ...await importOriginal<typeof import("../src/lib/access-session")>(),
-  recoverAccessSession: vi.fn(() => true),
-}));
-let useUsageData: typeof import("../src/hooks/useUsageData").useUsageData;
-beforeAll(async () => {
-  vi.stubEnv("VITE_API_BASE_URL", "https://api.example");
-  ({ useUsageData } = await import("../src/hooks/useUsageData"));
-});
-afterEach(() => { vi.unstubAllGlobals(); vi.clearAllMocks(); sessionStorage.clear(); });
+afterEach(() => { vi.unstubAllGlobals(); });
 
-describe("用量加载与会话恢复集成", () => {
-  it("首次 fetch 失败后无需刷新即可进入 ready", async () => {
+describe("同源用量加载", () => {
+  it("首次请求失败后重试同源接口并进入 ready，无需配置 API 地址", async () => {
     const fetchMock = vi.fn().mockRejectedValueOnce(new TypeError("Failed to fetch"))
       .mockResolvedValueOnce(Response.json(createDemoPayload()));
     vi.stubGlobal("fetch", fetchMock);
     const { result, unmount } = renderHook(() => useUsageData());
     await waitFor(() => expect(result.current.phase).toBe("ready"));
     expect(result.current.error).toBeNull();
-    expect(recoverAccessSession).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenLastCalledWith("/v1/usage", expect.objectContaining({
+      credentials: "same-origin", redirect: "manual",
+    }));
     unmount();
   });
 
   it.each([
+    () => new Response(null, { status: 401 }),
     () => new Response(null, { status: 403 }),
     () => new Response("<html>Access login</html>", { headers: { "Content-Type": "text/html" } }),
-  ])("Access 拒绝或登录 HTML 触发会话恢复而非契约错误", async (response) => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response()));
+    () => Object.defineProperty(new Response(null), "type", { value: "opaqueredirect" }),
+  ])("Access 拒绝或登录重定向提示手动重新登录，不自动循环", async (response) => {
+    const fetchMock = vi.fn().mockResolvedValue(response());
+    vi.stubGlobal("fetch", fetchMock);
+    const pageUrl = window.location.href;
     const { result, unmount } = renderHook(() => useUsageData());
-    await waitFor(() => expect(recoverAccessSession).toHaveBeenCalledOnce());
-    expect(result.current.error).toBeNull();
-    expect(result.current.phase).toBe("loading");
+    await waitFor(() => expect(result.current.error?.kind).toBe("access"));
+    expect(result.current.error?.message).toContain("刷新页面重新登录");
+    expect(result.current.phase).toBe("idle");
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(window.location.href).toBe(pageUrl);
     unmount();
   });
 
-  it("API 服务故障不触发身份跳转，手动重试仍能恢复", async () => {
+  it("API 服务故障允许手动重试恢复", async () => {
     vi.stubGlobal("fetch", vi.fn()
       .mockResolvedValueOnce(Response.json({ error: "upstream unavailable" }, { status: 502 }))
       .mockResolvedValueOnce(Response.json(createDemoPayload())));
     const { result, unmount } = renderHook(() => useUsageData());
     await waitFor(() => expect(result.current.error?.kind).toBe("api"));
-    expect(recoverAccessSession).not.toHaveBeenCalled();
     act(() => result.current.refresh());
     await waitFor(() => expect(result.current.phase).toBe("ready"));
     expect(result.current.error).toBeNull();
+    unmount();
+  });
+
+  it("会话过期仍保留上一次成功快照", async () => {
+    const snapshot = createDemoPayload();
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(Response.json(snapshot))
+      .mockResolvedValueOnce(new Response(null, { status: 401 })));
+    const { result, unmount } = renderHook(() => useUsageData());
+    await waitFor(() => expect(result.current.phase).toBe("ready"));
+    act(() => result.current.refresh());
+    await waitFor(() => expect(result.current.error?.kind).toBe("access"));
+    expect(result.current.data).toEqual(snapshot);
+    expect(result.current.phase).toBe("ready");
     unmount();
   });
 });

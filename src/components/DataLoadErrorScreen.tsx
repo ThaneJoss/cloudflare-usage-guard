@@ -1,25 +1,17 @@
-import { AlertTriangle, ArrowRight, ExternalLink, RefreshCw } from "lucide-react";
+import { AlertTriangle, ArrowRight, RefreshCw } from "lucide-react";
 
 import type { UsageLoadError } from "../hooks/useUsageData";
-import { normalizeEndpoint } from "../lib/usage";
-import { accessSessionUrl } from "../lib/access-session";
 import { Brand } from "./Brand";
 
 interface DataLoadErrorScreenProps {
-  endpoint: string;
   error: UsageLoadError | null;
   onRetry: () => void;
 }
 
 export function DataLoadErrorScreen({
-  endpoint,
   error,
   onRetry,
 }: DataLoadErrorScreenProps) {
-  const normalizedEndpoint = normalizeEndpoint(endpoint);
-  const canInspectAccess =
-    error?.kind === "access" || error?.kind === "network";
-
   return (
     <main className="fatal-page">
       <Brand />
@@ -37,19 +29,14 @@ export function DataLoadErrorScreen({
             <RefreshCw size={17} aria-hidden="true" />
             重新同步
           </button>
-          {normalizedEndpoint && canInspectAccess ? (
-            <a
-              href={accessSessionUrl(normalizedEndpoint, window.location.href)}
-              rel="noreferrer"
-            >
-              恢复 API 会话
-              <ExternalLink size={15} aria-hidden="true" />
-            </a>
+          {error?.kind === "access" ? (
+            <button type="button" onClick={() => window.location.reload()}>
+              刷新页面以登录
+            </button>
           ) : null}
         </div>
         <small>
-          API 地址由部署环境固定。首次访问或会话过期时，会通过 Cloudflare Access
-          验证 API 域名的会话并返回此页，无需填写端点。
+          登录过期时，刷新页面即可重新验证身份。若仍无法访问，请检查账户权限。
         </small>
         <a className="fatal-demo-link" href="?demo=1">
           使用演示数据检查界面

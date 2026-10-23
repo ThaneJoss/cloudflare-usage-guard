@@ -19,70 +19,35 @@ const SECURITY_HEADERS = {
 } as const;
 
 export default {
-  async fetch(request, env): Promise<Response> {
+  async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     const origin = request.headers.get("Origin");
-    const allowedOrigin = resolveAllowedOrigin(origin, env.ALLOWED_ORIGINS);
 
-    if (request.method === "OPTIONS") {
-      if (!origin || !allowedOrigin) {
-        return jsonResponse({ error: "Origin 不在允许列表" }, 403);
-      }
-      return new Response(null, {
-        status: 204,
-        headers: corsHeaders(allowedOrigin),
-      });
+    if (url.pathname !== "/health" && url.pathname !== "/v1/usage") {
+      return jsonResponse({ error: "Not found" }, 404);
     }
 
-    if (url.pathname === "/health" && request.method === "GET") {
-      return jsonResponse(
-        { ok: true, service: "cloudflare-usage-api" },
-        200,
-        allowedOrigin,
-      );
+    if (origin && origin !== url.origin) {
+      return jsonResponse({ error: "仅允许同源请求" }, 403);
     }
 
-    if (url.pathname !== "/v1/usage" || request.method !== "GET") {
-      return jsonResponse({ error: "Not found" }, 404, allowedOrigin);
+    if (request.method !== "GET") {
+      const response = jsonResponse({ error: "Method not allowed" }, 405);
+      response.headers.set("Allow", "GET");
+      return response;
     }
 
-    if (origin && !allowedOrigin) {
-      return jsonResponse({ error: "Origin 不在允许列表" }, 403);
+    if (url.pathname === "/health") {
+      return jsonResponse({ ok: true, service: "cloudflare-usage-api" }, 200);
     }
 
     if (!(await verifyAccessJwt(request, env.TEAM_DOMAIN, env.POLICY_AUD))) {
-      return jsonResponse(
-        { error: "Cloudflare Access 身份无效" },
-        403,
-        allowedOrigin,
-      );
-    }
-
-    // A top-level visit lets Access establish its API-domain cookie before CORS fetches.
-    // Keep this on the same protected path and validate JWT before any redirect.
-    if (url.searchParams.get("access_session") === "1") {
-      let returnTo: URL;
-      try {
-        returnTo = new URL(url.searchParams.get("return_to") ?? "");
-      } catch {
-        return jsonResponse({ error: "返回地址无效" }, 400, allowedOrigin);
-      }
-      if (
-        !["https:", "http:"].includes(returnTo.protocol) ||
-        returnTo.username || returnTo.password ||
-        !resolveAllowedOrigin(returnTo.origin, env.ALLOWED_ORIGINS)
-      ) {
-        return jsonResponse({ error: "返回地址不在允许列表" }, 400, allowedOrigin);
-      }
-      return new Response(null, {
-        status: 303,
-        headers: { ...SECURITY_HEADERS, Location: returnTo.href },
-      });
+      return jsonResponse({ error: "Cloudflare Access 身份无效" }, 403);
     }
 
     try {
       const payload = await loadUsageSnapshot(request, env);
-      return jsonResponse(payload, 200, allowedOrigin);
+      return jsonResponse(payload, 200);
     } catch (error) {
       console.error(
         JSON.stringify({
@@ -90,11 +55,7 @@ export default {
           error_name: error instanceof Error ? error.name : "UnknownError",
         }),
       );
-      return jsonResponse(
-        { error: "暂时无法生成用量快照" },
-        502,
-        allowedOrigin,
-      );
+      return jsonResponse({ error: "暂时无法生成用量快照" }, 502);
     }
   },
 } satisfies ExportedHandler<Env>;
@@ -122,37 +83,8 @@ export async function loadUsageSnapshot(
   });
 }
 
-function resolveAllowedOrigin(
-  requestOrigin: string | null,
-  configuredOrigins: string,
-): string | null {
-  if (!requestOrigin) return null;
-  const allowed = configuredOrigins
-    .split(",")
-    .map((origin) => origin.trim())
-    .filter(Boolean);
-  return allowed.includes(requestOrigin) ? requestOrigin : null;
-}
-
-function corsHeaders(origin: string): Headers {
+function jsonResponse(value: unknown, status: number): Response {
   const headers = new Headers(SECURITY_HEADERS);
-  headers.set("Access-Control-Allow-Origin", origin);
-  headers.set("Access-Control-Allow-Credentials", "true");
-  headers.set("Access-Control-Allow-Headers", "Content-Type");
-  headers.set("Access-Control-Allow-Methods", "GET, OPTIONS");
-  headers.set("Access-Control-Max-Age", "86400");
-  headers.set("Vary", "Origin");
-  return headers;
-}
-
-function jsonResponse(
-  value: unknown,
-  status: number,
-  allowedOrigin: string | null = null,
-): Response {
-  const headers = allowedOrigin
-    ? corsHeaders(allowedOrigin)
-    : new Headers(SECURITY_HEADERS);
   headers.set("Content-Type", "application/json; charset=utf-8");
   return Response.json(value, { status, headers });
 }

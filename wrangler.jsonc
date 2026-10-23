@@ -5,10 +5,15 @@
   "compatibility_date": "2026-07-27",
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": false,
-  "preview_urls": true,
+  "preview_urls": false,
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/v1", "/v1/*", "/health"]
+  },
   "routes": [
     {
-      "pattern": "api.cloudflare.thanejoss.com",
+      "pattern": "cloudflare.thanejoss.com",
       "custom_domain": true
     }
   ],
@@ -16,7 +21,6 @@
     "required": ["CF_ACCOUNT_ID", "CF_API_TOKEN", "POLICY_AUD"]
   },
   "vars": {
-    "ALLOWED_ORIGINS": "https://cloudflare.thanejoss.com",
     "TEAM_DOMAIN": "https://thanejoss.cloudflareaccess.com"
   },
   "observability": {

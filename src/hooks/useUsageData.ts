@@ -1,11 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { UsagePayload } from "../../shared/usage";
-import { clearAccessRecovery, fetchUsageResponse, recoverAccessSession } from "../lib/access-session";
+import { fetchUsageResponse } from "../lib/usage-client";
 import { createDemoPayload } from "../demo";
-import { normalizeEndpoint, parseUsagePayload } from "../lib/usage";
-
-const configuredEndpoint = normalizeEndpoint(import.meta.env.VITE_API_BASE_URL ?? "");
+import { parseUsagePayload } from "../lib/usage";
 
 type LoadPhase = "idle" | "loading" | "ready" | "refreshing";
 
@@ -16,7 +14,6 @@ export interface UsageLoadError {
 
 interface UsageDataController {
   data: UsagePayload | null;
-  endpoint: string;
   error: UsageLoadError | null;
   isDemo: boolean;
   phase: LoadPhase;
@@ -44,40 +41,21 @@ export function useUsageData(): UsageDataController {
         return;
       }
 
-      if (!configuredEndpoint) {
-        setError({
-          kind: "contract",
-          message: "当前构建未配置 VITE_API_BASE_URL，无法确定用量 API 地址。",
-        });
-        setPhase("idle");
-        return;
-      }
-
       const requestId = requestSequence.current + 1;
       requestSequence.current = requestId;
       setError(null);
       setPhase(mode === "refresh" && data ? "refreshing" : "loading");
 
-      function recoverSession(): boolean {
-        if (!navigator.onLine) return false;
-        try {
-          return recoverAccessSession(configuredEndpoint, window.location.href,
-            window.sessionStorage, (url) => window.location.replace(url));
-        } catch {
-          return false;
-        }
-      }
-
       try {
         const response = await fetchUsageResponse(
-          `${configuredEndpoint}/v1/usage`, AbortSignal.timeout(25_000),
+          AbortSignal.timeout(25_000),
         );
         if (requestId !== requestSequence.current) return;
-        const accessResponse = response.status === 401 || response.status === 403 ||
+        const accessResponse = response.type === "opaqueredirect" ||
+          response.status === 401 || response.status === 403 ||
           (response.ok && response.headers.get("Content-Type")?.includes("text/html"));
         if (accessResponse) {
-          if (recoverSession()) return;
-          setError({ kind: "access", message: "API 会话验证未完成，请恢复 API 会话；若仍失败，请检查 Access 授权。" });
+          setError({ kind: "access", message: "登录已过期或未获得访问权限，请刷新页面重新登录。" });
           setPhase(data ? "ready" : "idle");
           return;
         }
@@ -88,8 +66,7 @@ export function useUsageData(): UsageDataController {
           const message =
             getResponseError(body) ?? `API 请求失败（HTTP ${response.status}）`;
           setError({
-            kind:
-              response.status === 401 || response.status === 403 ? "access" : "api",
+            kind: "api",
             message,
           });
           setPhase(data ? "ready" : "idle");
@@ -99,12 +76,10 @@ export function useUsageData(): UsageDataController {
         const payload = parseUsagePayload(body);
         if (requestId !== requestSequence.current) return;
 
-        try { clearAccessRecovery(window.sessionStorage); } catch { /* Storage may be disabled. */ }
         setData(payload);
         setPhase("ready");
       } catch (caught) {
         if (requestId !== requestSequence.current) return;
-        if (caught instanceof TypeError && recoverSession()) return;
         setError(getRequestError(caught));
         setPhase(data ? "ready" : "idle");
       }
@@ -124,7 +99,6 @@ export function useUsageData(): UsageDataController {
 
   return {
     data,
-    endpoint: configuredEndpoint,
     error,
     isDemo,
     phase,
@@ -153,13 +127,13 @@ function getRequestError(caught: unknown): UsageLoadError {
     return { kind: "contract", message: caught.message };
   }
   if (caught instanceof TypeError) {
-    return { kind: "network", message: "无法连接用量 API，可能是网络异常或 API 域名的 Access 会话尚未建立。请恢复 API 会话后重试。" };
+    return { kind: "network", message: "无法连接控制台，请检查网络后重试。" };
   }
   if (caught instanceof Error && caught.message) {
     return { kind: "network", message: caught.message };
   }
   return {
     kind: "network",
-    message: "无法连接用量 API，请检查地址、网络和 Access 授权。",
+    message: "无法连接控制台，请检查网络后重试。",
   };
 }
