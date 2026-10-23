@@ -5,7 +5,6 @@ import { createDemoPayload } from "../src/demo";
 import {
   formatDate,
   matchesProductFilter,
-  normalizeEndpoint,
   parseUsagePayload,
   rankMetricSignals,
 } from "../src/lib/usage";
@@ -18,17 +17,6 @@ describe("前端用量契约", () => {
     expect(() =>
       parseUsagePayload({ generatedAt: payload.generatedAt }),
     ).toThrow("API 返回的数据结构不完整");
-  });
-
-  it("只允许生产 HTTPS 与本地 HTTP 地址", () => {
-    expect(normalizeEndpoint("https://api.example.com/v1/")).toBe(
-      "https://api.example.com",
-    );
-    expect(normalizeEndpoint("http://localhost:8787/")).toBe(
-      "http://localhost:8787",
-    );
-    expect(normalizeEndpoint("http://api.example.com")).toBe("");
-    expect(normalizeEndpoint("不是地址")).toBe("");
   });
 
   it("风险排序和筛选都基于真实用量字段", () => {

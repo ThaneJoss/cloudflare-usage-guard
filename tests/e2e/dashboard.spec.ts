@@ -64,13 +64,10 @@ test("刷新失败保留成功快照并允许重新同步", async ({ page, baseU
   const snapshot = createDemoPayload();
   let requests = 0;
   await page.route("**/v1/usage", async (route) => {
+    expect(new URL(route.request().url()).origin).toBe(baseURL);
     requests += 1;
     await route.fulfill({
       status: requests === 2 ? 503 : 200,
-      headers: {
-        "Access-Control-Allow-Origin": baseURL ?? "",
-        "Access-Control-Allow-Credentials": "true",
-      },
       json: requests === 2 ? { error: "测试采集器暂时不可用" } : snapshot,
     });
   });
@@ -93,4 +90,28 @@ test("刷新失败保留成功快照并允许重新同步", async ({ page, baseU
   await expect(page.getByRole("alert")).toHaveCount(0);
   await expect(page.getByText("LIVE", { exact: true })).toBeVisible();
   expect(requests).toBe(3);
+});
+
+test("登录重定向停留在本站，手动刷新页面后恢复用量", async ({ page, baseURL }) => {
+  let requests = 0;
+  await page.route("**/v1/usage", async (route) => {
+    expect(new URL(route.request().url()).origin).toBe(baseURL);
+    requests += 1;
+    if (requests === 1) {
+      await route.fulfill({
+        status: 302,
+        headers: { Location: "https://login.example.com/cdn-cgi/access/login" },
+      });
+      return;
+    }
+    await route.fulfill({ json: createDemoPayload() });
+  });
+  await page.goto("/");
+  const login = page.getByRole("button", { name: "刷新页面以登录", exact: true });
+  await expect(login).toBeVisible();
+  await expect(page).toHaveURL(`${baseURL}/`);
+  expect(requests).toBe(1);
+  await login.click();
+  await expect(page.getByRole("region", { name: "免费额度雷达" })).toBeVisible();
+  expect(requests).toBe(2);
 });

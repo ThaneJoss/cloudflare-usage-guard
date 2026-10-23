@@ -34,19 +34,6 @@ export const PRODUCT_FILTERS: ReadonlyArray<{
   { id: "unavailable", label: "数据不可用" },
 ];
 
-export function normalizeEndpoint(value: string): string {
-  const normalized = value.trim().replace(/\/+$/, "");
-  try {
-    const url = new URL(normalized);
-    const isLocal = url.hostname === "localhost" || url.hostname === "127.0.0.1";
-    return url.protocol === "https:" || (url.protocol === "http:" && isLocal)
-      ? url.origin
-      : "";
-  } catch {
-    return "";
-  }
-}
-
 export function matchesProductFilter(
   product: ProductUsage,
   filter: ProductFilter,

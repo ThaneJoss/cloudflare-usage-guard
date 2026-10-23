@@ -50,17 +50,24 @@ Cloudflare Usage Guard 不是营销页，也不是带装饰图表的账单复刻
 
 | 状态 | 界面行为 |
 | --- | --- |
-| 首次加载 | 直接读取构建时固定的 API Origin，显示独立加载页 |
+| 首次加载 | 通过同源 `/v1/usage` 读取数据，显示独立加载页 |
 | 成功 | 显示 `LIVE` 或 `DEMO` 与快照生成时间；数据源另标刷新节奏与数据截止时间 |
 | 后台刷新 | 保留当前内容，按钮和主内容标记忙碌 |
 | 刷新失败 | 保留最后成功快照，标记 `STALE` 并提供重试 |
-| 首次加载失败 | 显示恢复页与重试，不要求用户再次登录或填写端点 |
-| Access / 网络错误 | 在恢复页提供 API 状态检查入口 |
+| 首次加载失败 | 显示错误页与重试，不要求用户填写端点或凭据 |
+| Access / 会话过期 | 提供手动刷新页面重新登录的操作，不自动执行跨域会话恢复 |
+| 网络错误 | 提供重试，并提示会话过期时可刷新页面重新验证身份 |
 | API / 契约错误 | 只给对应诊断，不误导用户进入 Access |
 | 组件崩溃 | Error Boundary 提供恢复与安全演示入口 |
 
 请求使用序号屏障和 AbortController。较早响应不会覆盖较新的刷新，25 秒超时会归类为
-独立错误。浏览器不持久化 API Origin、令牌或响应内容。
+独立错误。页面与 API 共用主域 Access 会话，请求使用 `credentials: "same-origin"`；
+浏览器不配置或持久化 API Origin、令牌或响应内容。
+
+前端与 API 随同一个 Worker 版本发布到 `cloudflare.thanejoss.com`。静态页面由
+Workers Static Assets 提供，`/v1`、`/v1/*` 和 `/health` 先进入 Worker，避免 API
+错误落入 SPA 的 HTML 回退。所有路径受主域 Access 策略保护，API 仍在读取服务端缓存
+前验证 JWT。产品保持只读监控，迁移不增加预算修改、自动停服或账户写入操作。
 
 ## 响应式规则
 
@@ -102,6 +109,9 @@ Actions artifacts，可通过本地运行浏览器测试生成。
 - CSS gzip 上限 12 KiB。
 - hash 静态资源使用一年不可变缓存。
 - HTML 和 API 响应不做不可变缓存。
+
+静态响应头和 hash 资源缓存策略维护在 `public/_headers`，随 Vite 构建进入 `dist/`。
+Worker API 自行设置响应头，浏览器 API 响应保持 `no-store`。
 
 `pnpm check:bundle` 可在本地构建后检查预算。通用 CI 不再单独执行产物预算检查。
 

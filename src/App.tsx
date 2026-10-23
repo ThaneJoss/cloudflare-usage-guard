@@ -22,7 +22,6 @@ export function App() {
   if (!usage.data) {
     return (
       <DataLoadErrorScreen
-        endpoint={usage.endpoint}
         error={usage.error}
         onRetry={usage.refresh}
       />
@@ -53,8 +52,11 @@ export function App() {
               <strong>刷新失败，仍显示上一次成功快照</strong>
               <span>{usage.error.message}</span>
             </div>
-            <button type="button" onClick={usage.refresh}>
-              重新同步
+            <button
+              type="button"
+              onClick={usage.error.kind === "access" ? () => window.location.reload() : usage.refresh}
+            >
+              {usage.error.kind === "access" ? "刷新页面以登录" : "重新同步"}
             </button>
           </div>
         ) : null}
