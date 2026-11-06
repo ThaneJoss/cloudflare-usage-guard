@@ -94,9 +94,9 @@ describe("采集完整性和取消边界", () => {
     const pending = withSourceDeadline(() => new Promise<never>((_resolve, reject) => {
       rejectLate = reject;
     }));
-    const assertion = expect(pending).rejects.toMatchObject({ name: "TimeoutError" });
+    const result = pending.catch((error: unknown) => error);
     await vi.advanceTimersByTimeAsync(20_000);
-    await assertion;
+    expect(await result).toMatchObject({ name: "TimeoutError" });
     rejectLate?.(new Error("late failure"));
     await Promise.resolve();
     expect(vi.getTimerCount()).toBe(0);

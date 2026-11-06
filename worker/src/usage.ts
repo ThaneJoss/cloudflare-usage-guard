@@ -156,10 +156,11 @@ async function loadProduct<T>(
     const product = build(await withSourceDeadline(load));
     if (product.partial) {
       // A low lower bound cannot establish that the actual usage is healthy.
-      product.metrics = product.metrics.map((metric) =>
-        metric.status === "ok" && metric.precision === "lower-bound"
-          ? { ...metric, status: "unavailable" } : metric,
-      );
+      for (const metric of product.metrics) {
+        if (metric.status === "ok" && metric.precision === "lower-bound") {
+          metric.status = "unavailable";
+        }
+      }
     }
     return {
       product,
