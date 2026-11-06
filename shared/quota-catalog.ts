@@ -135,9 +135,9 @@ export const PRODUCT_CATALOG = {
     id: "r2",
     name: "R2",
     eyebrow: "对象存储",
-    description: "免费层包含月度 Class A、Class B 与 GB-month 存储额度；网络出口免费。",
+    description: "免费层仅适用于 Standard；Infrequent Access 不享有免费额度。未区分类别的账户合计不能判断免费余量。",
     behavior: "paid-overage",
-    behaviorLabel: "超过免费层后计费",
+    behaviorLabel: "Standard 超额计费 · IA 无免费层",
     documentationUrl: "https://developers.cloudflare.com/r2/pricing/",
     sourceLabel: "GraphQL · R2 Analytics",
     metrics: {

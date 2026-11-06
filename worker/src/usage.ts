@@ -25,6 +25,7 @@ import {
   type WorkersUsageRaw,
 } from "./cloudflare";
 import type { ResponseCache } from "./cache";
+import { withSourceDeadline } from "./lib/deadline";
 import {
   createMetric,
   getTimeWindows,
@@ -56,13 +57,13 @@ export interface UsageCollectionOptions {
 }
 
 export interface UsageClient {
-  getWorkersUsage(windows: TimeWindows): Promise<WorkersUsageRaw>;
-  getKvUsage(windows: TimeWindows): Promise<KvUsageRaw>;
-  getD1Usage(windows: TimeWindows): Promise<D1UsageRaw>;
-  getR2Usage(windows: TimeWindows): Promise<R2UsageRaw>;
-  getQueueUsage(windows: TimeWindows): Promise<QueueUsageRaw>;
-  getPagesUsage(windows: TimeWindows): Promise<PagesUsageRaw>;
-  getBillableUsage(): Promise<BillableUsageRaw>;
+  getWorkersUsage(windows: TimeWindows, signal?: AbortSignal): Promise<WorkersUsageRaw>;
+  getKvUsage(windows: TimeWindows, signal?: AbortSignal): Promise<KvUsageRaw>;
+  getD1Usage(windows: TimeWindows, signal?: AbortSignal): Promise<D1UsageRaw>;
+  getR2Usage(windows: TimeWindows, signal?: AbortSignal): Promise<R2UsageRaw>;
+  getQueueUsage(windows: TimeWindows, signal?: AbortSignal): Promise<QueueUsageRaw>;
+  getPagesUsage(windows: TimeWindows, signal?: AbortSignal): Promise<PagesUsageRaw>;
+  getBillableUsage(signal?: AbortSignal): Promise<BillableUsageRaw>;
 }
 
 export async function collectUsage(
@@ -87,41 +88,41 @@ export async function collectUsage(
       loadProduct(
         WORKERS_DEFINITION,
         generatedAt,
-        () => client.getWorkersUsage(windows),
+        (signal) => client.getWorkersUsage(windows, signal),
         (usage) => buildWorkersProduct(usage, windows),
       ),
       loadProduct(
         KV_DEFINITION,
         generatedAt,
-        () => client.getKvUsage(windows),
+        (signal) => client.getKvUsage(windows, signal),
         (usage) => buildKvProduct(usage, windows),
       ),
       loadProduct(
         D1_DEFINITION,
         generatedAt,
-        () => client.getD1Usage(windows),
+        (signal) => client.getD1Usage(windows, signal),
         (usage) => buildD1Product(usage, windows),
       ),
       loadProduct(
         R2_DEFINITION,
         generatedAt,
-        () => client.getR2Usage(windows),
-        (usage) => buildR2Product(usage, windows),
+        (signal) => client.getR2Usage(windows, signal),
+        (usage) => buildR2Product(usage),
       ),
       loadProduct(
         QUEUES_DEFINITION,
         generatedAt,
-        () => client.getQueueUsage(windows),
+        (signal) => client.getQueueUsage(windows, signal),
         (usage) => buildQueuesProduct(usage, windows),
       ),
       loadProduct(
         PAGES_DEFINITION,
         generatedAt,
-        () => client.getPagesUsage(windows),
+        (signal) => client.getPagesUsage(windows, signal),
         (usage) => buildPagesProduct(usage, windows),
       ),
     ]),
-    loadBilling(() => client.getBillableUsage()),
+    loadBilling((signal) => client.getBillableUsage(signal)),
   ]);
 
   const products = productResults.map((result) => result.product);
@@ -147,12 +148,19 @@ export async function collectUsage(
 async function loadProduct<T>(
   definition: ProductDefinition,
   dataAsOf: string,
-  load: () => Promise<T>,
+  load: (signal: AbortSignal) => Promise<T>,
   build: (value: T) => ProductUsage,
 ): Promise<ProductLoadResult> {
   const startedAt = Date.now();
   try {
-    const product = build(await load());
+    const product = build(await withSourceDeadline(load));
+    if (product.partial) {
+      // A low lower bound cannot establish that the actual usage is healthy.
+      product.metrics = product.metrics.map((metric) =>
+        metric.status === "ok" && metric.precision === "lower-bound"
+          ? { ...metric, status: "unavailable" } : metric,
+      );
+    }
     return {
       product,
       source: {
@@ -161,7 +169,7 @@ async function loadProduct<T>(
         status: product.partial ? "partial" : "ok",
         cadence: definition.cadence,
         dataAsOf,
-        message: product.partial ? "返回了可用的下限数据" : "数据读取成功",
+        message: product.error ?? (product.partial ? "数据不完整，无法确认全部额度" : "数据读取成功"),
       },
     };
   } catch (error) {
@@ -285,44 +293,48 @@ function buildD1Product(usage: D1UsageRaw, windows: TimeWindows): ProductUsage {
   ]);
 }
 
-function buildR2Product(usage: R2UsageRaw, windows: TimeWindows): ProductUsage {
-  const details = [
-    { label: "免费操作", value: formatInteger(usage.freeOperations) },
-  ];
-  if (usage.unknownOperations > 0) {
-    details.push({
-      label: "未分类操作",
-      value: formatInteger(usage.unknownOperations),
+function buildR2Product(usage: R2UsageRaw): ProductUsage {
+  const note = "免费额度仅适用于 Standard；当前账户合计未区分存储类别，非零用量无法判断免费余量";
+  const operations = (id: string, label: string, used: number, limit: number) =>
+    createMetric({
+      id, label,
+      // Zero across all categories implies zero Standard usage. Positive totals
+      // cannot be assigned to Standard without a verified category dimension.
+      used: used === 0 && usage.unknownOperations === 0 ? 0 : null,
+      limit,
+      unit: "operations",
+      period: "month",
+      resetAt: null,
+      precision: "analytics-estimate",
+      note,
     });
-  }
-
-  return availableProduct(R2_DEFINITION, [
-    monthlyMetric(
-      "r2-class-a",
-      "Class A",
-      usage.classA,
-      PRODUCT_CATALOG.r2.metrics.classA.limit,
-      windows,
-    ),
-    monthlyMetric(
-      "r2-class-b",
-      "Class B",
-      usage.classB,
-      PRODUCT_CATALOG.r2.metrics.classB.limit,
-      windows,
-    ),
+  const metrics = [
+    operations("r2-class-a", "Class A", usage.classA, PRODUCT_CATALOG.r2.metrics.classA.limit),
+    operations("r2-class-b", "Class B", usage.classB, PRODUCT_CATALOG.r2.metrics.classB.limit),
     createMetric({
       id: "r2-storage",
       label: "当前存储快照",
-      used: usage.storageBytes,
+      used: usage.storageBytes === 0 ? 0 : null,
       limit: PRODUCT_CATALOG.r2.metrics.storage.limit,
       unit: "bytes",
       period: "current",
-      resetAt: windows.monthEnd,
+      resetAt: null,
       precision: "analytics-estimate",
-      note: "免费额度按 GB-month 计费；当前快照仅用于预警，不是精确月均值",
+      note: `${note}；GB-month 额度也不能由当前存储快照推算`,
     }),
-  ], details);
+  ];
+  const partial = metrics.some((metric) => metric.status === "unavailable");
+  return {
+    ...availableProduct(R2_DEFINITION, metrics, [
+      { label: "本自然月 Class A（全部类别）", value: formatInteger(usage.classA) },
+      { label: "本自然月 Class B（全部类别）", value: formatInteger(usage.classB) },
+      { label: "当前存储（全部类别）", value: `${formatInteger(usage.storageBytes)} B` },
+      { label: "免费操作", value: formatInteger(usage.freeOperations) },
+      { label: "未分类操作", value: formatInteger(usage.unknownOperations) },
+    ]),
+    partial,
+    error: partial ? "采集成功，但存储类别未区分，免费额度无法完全判断；请结合官方账单查看费用。" : null,
+  };
 }
 
 function buildQueuesProduct(
@@ -368,13 +380,13 @@ function buildPagesProduct(
   };
 }
 
-async function loadBilling(load: () => Promise<BillableUsageRaw>): Promise<{
+async function loadBilling(load: (signal: AbortSignal) => Promise<BillableUsageRaw>): Promise<{
   billing: BillingUsage;
   source: SourceHealth;
 }> {
   const startedAt = Date.now();
   try {
-    const raw = await load();
+    const raw = await withSourceDeadline(load);
     const rows = raw.rows.map((row) => ({
       id: billableUsageRowId(row),
       service: row.ServiceName,
@@ -532,25 +544,6 @@ function dailyRowsMetric(
   });
 }
 
-function monthlyMetric(
-  id: string,
-  label: string,
-  used: number,
-  limit: number,
-  windows: TimeWindows,
-): UsageMetric {
-  return createMetric({
-    id,
-    label,
-    used,
-    limit,
-    unit: "operations",
-    period: "month",
-    resetAt: windows.monthEnd,
-    precision: "analytics-estimate",
-  });
-}
-
 function unavailableMetric(
   id: string,
   label: string,
@@ -579,7 +572,10 @@ function summarize(
   const attention = available.filter((metric) =>
     ["watch", "critical", "exceeded"].includes(metric.status),
   );
-  const overall = worstStatus(available.map((metric) => metric.status));
+  const knownStatus = worstStatus(available.map((metric) => metric.status));
+  const incomplete = products.some((product) => !product.available || product.partial) ||
+    metrics.some((metric) => metric.status === "unavailable");
+  const overall = knownStatus === "ok" && incomplete ? "unknown" : knownStatus;
 
   return {
     overall,
