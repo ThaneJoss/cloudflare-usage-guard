@@ -129,13 +129,15 @@ describe("控制台组件", () => {
   });
   it("R2 类别未知不会显示健康、重置时间或下限标签", () => {
     const payload = createDemoPayload();
-    const raw = payload.products.find((product) => product.id === "r2")!;
-    const product = {
-      ...raw, partial: true, error: "存储类别未区分，免费额度无法判断",
-      metrics: raw.metrics.map((metric) => ({
-        ...metric, used: null, utilization: null, resetAt: null, status: "unavailable" as const,
-      })),
-    };
+    const product = payload.products.find((item) => item.id === "r2")!;
+    product.partial = true;
+    product.error = "存储类别未区分，免费额度无法判断";
+    for (const metric of product.metrics) {
+      metric.used = null;
+      metric.utilization = null;
+      metric.resetAt = null;
+      metric.status = "unavailable";
+    }
     render(<UsageSection products={[product]} filter="attention" onFilterChange={vi.fn()} />);
     expect(screen.getByRole("heading", { name: "R2" })).toBeVisible();
     expect(screen.getByText("额度未完全确认")).toBeVisible();
