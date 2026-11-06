@@ -65,7 +65,8 @@ Workers AI、Images、Vectorize、Browser Rendering 和 Workflows 暂时只列�
 
 - `wrangler.jsonc` 同时声明 `worker/src/index.ts` 入口与 `dist/` 静态资源。
   `/v1`、`/v1/*` 和 `/health` 先进入 Worker，其余路径按静态资源和 SPA 回退规则处理。
-- Worker 关闭 `workers.dev` 和预览 URL，仅绑定 `cloudflare.thanejoss.com`。
+- Worker 关闭生产 `workers.dev` 入口，生产站点绑定 `cloudflare.thanejoss.com`；
+  开启 `workers.dev` 预览 URL，用于复核非生产分支。
 - Cloudflare Access 在边缘保护主域全部路径；Worker 对用量 API 再校验
   `Cf-Access-Jwt-Assertion` 的签名、签发方和主域 Access 应用 AUD。
 - 前端请求使用 `credentials: "same-origin"`，不再维护跨域 CORS 或 API 会话恢复跳转。
@@ -76,6 +77,8 @@ Workers AI、Images、Vectorize、Browser Rendering 和 Workflows 暂时只列�
 - 生产构建不输出 source map，静态 hash 资源使用不可变长缓存。
 - `/health` 在 Worker 代码层不要求 JWT，但生产主域仍由 Cloudflare Access
   边缘策略保护；不要把它当作公网匿名探针。
+- 预览 URL 不自动继承主域的 Access 策略，静态页面与 `/health` 可公开访问；
+  用量 API 仍保留上述 JWT 校验。预览页面可通过 `?demo=1` 使用无凭据演示数据。
 
 建议为 Worker 创建只读 Cloudflare API Token，仅授予：
 
@@ -162,11 +165,15 @@ Workers Builds 使用：
 
 `pnpm build` 在本地和 Workers Builds 中都构建前端并执行 Worker TypeScript 检查，
 不再根据 `WORKERS_CI` 选择构建目标。Wrangler 随后负责打包 Worker 并上传静态资源。
-非生产分支版本上传不启用公共预览 URL。
+非生产分支版本上传使用公共预览 URL，`wrangler.jsonc` 通过
+`preview_urls: true` 声明此设置。首次启用现有 Worker 的预览地址时，需通过
+Worker subdomain API 开启 `previews_enabled` 并保留生产 `enabled` 原值；
+`wrangler versions upload` 本身不会更新该路由开关。生产部署会应用仓库中的配置。
 
 ### 从 Vercel 与 API 子域迁移
 
-以下步骤是部署操作说明，不代表生产环境已经完成迁移：
+以下步骤是部署操作说明，不代表生产环境已经完成迁移。步骤中的预览入口关闭要求
+用于迁移窗口；完成迁移并核对安全边界后，可恢复上述日常分支预览设置：
 
 1. 记录当前 Vercel 生产版本、主域 DNS / 自定义域名绑定、API Worker 版本及旧 API
    Access AUD，确认能够恢复原交付链。先保留原 Vercel 项目和旧 API Access 应用。
