@@ -39,11 +39,11 @@
     "lucide-react": "^1.27.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "zod": "^4.4.3"
+    "zod": "4.6.6"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.12.1",
-    "@cloudflare/vitest-pool-workers": "^0.18.8",
+    "@cloudflare/vitest-plugin": "1.6.0",
     "@playwright/test": "1.62.0",
     "@testing-library/jest-dom": "^7.0.0",
     "@testing-library/react": "^16.3.2",
@@ -57,8 +57,8 @@
     "oxlint": "^1.75.0",
     "oxlint-tsgolint": "^7.0.2001",
     "typescript": "^7.0.2",
-    "vite": "^8.1.6",
+    "vite": "8.2.4",
     "vitest": "^4.1.12",
-    "wrangler": "^4.114.0"
+    "wrangler": "4.158.0"
   }
 }
