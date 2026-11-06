@@ -127,9 +127,11 @@ Vite 将 `/v1` 和 `/health` 代理到 `http://localhost:8787` 的本地 Worker�
 - Worker：`cloudflare-usage-guard`
 - 入口：`worker/src/index.ts`
 - 静态资源目录：`dist/`，启用 SPA 回退
-- 自定义域名：`cloudflare.thanejoss.com`
+- 生产 Worker Route：`cloudflare.thanejoss.com/*`（zone：`thanejoss.com`）
 - Access 团队域名：`https://thanejoss.cloudflareaccess.com`
 - 必需 Secrets：`CF_ACCOUNT_ID`、`CF_API_TOKEN`、`POLICY_AUD`
+
+项目沿用 `cloudflare.thanejoss.com` 当前 CNAME、目标及代理状态。`wrangler.jsonc` 只同步现有普通 Worker Route，不创建同名 Custom Domain 或接管 DNS。部署后通过实际域名核对当前 CNAME 链路、HTTPS 与 Access 登录。
 
 `POLICY_AUD` 必须使用现有 **主域** `cloudflare.thanejoss.com` Access 应用的
 Application Audience Tag。原 `api.cloudflare.thanejoss.com` 应用的 AUD 不再适用。
@@ -175,9 +177,9 @@ Workers Builds 使用：
    若先用 `wrangler versions upload --secrets-file` 上传新版本，须在上传静态资源前
    显式关闭并回读确认线上 `workers.dev` 与预览入口；版本上传不会应用配置文件中的
    触发器变更，仅设置 `preview_urls: false` 不足以关闭已经开放的预览入口。
-3. 完成本地质量验证，构建包含 `dist/` 的完整应用。安排切换窗口，按 Cloudflare
-   自定义域名要求处理主域现有 Vercel DNS 记录，并将完整 Worker、静态资源和新 AUD
-   一起发布到主域；核对最终域名绑定，旧 API 子域退出新应用配置。
+3. 完成本地质量验证，构建包含 `dist/` 的完整应用。安排切换窗口，保留主域当前 CNAME
+   及其目标、代理状态，通过 `cloudflare.thanejoss.com/*` 普通 Worker Route 将完整 Worker、
+   静态资源和新 AUD 一起发布到主域；核对路由指向 `cloudflare-usage-guard`，旧 API 子域退出新应用配置。
 4. 通过主域验证首次登录、页面与静态资源、`/v1/usage`、刷新及会话过期提示；核对
    安全响应头、静态缓存、未授权访问和 Worker 日志。确认默认域名与预览入口未开放。
 5. 验证完成后再清理原 Vercel 部署及旧 API 域相关配置。若需回滚，恢复旧前端主域绑定、
