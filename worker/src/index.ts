@@ -69,7 +69,7 @@ export async function loadUsageSnapshot(
   return loadCachedJson({
     cache,
     key: new URL(
-      `/__internal/cache/v2/usage/${encodeURIComponent(env.CF_ACCOUNT_ID)}`,
+      `/__internal/cache/v3/usage/${encodeURIComponent(env.CF_ACCOUNT_ID)}`,
       origin,
     ).toString(),
     source: "usage_snapshot",
