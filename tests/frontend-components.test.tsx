@@ -150,7 +150,7 @@ describe("控制台组件", () => {
 
   it("部分数据不能显示全部采集器在线或没有风险", () => {
     const payload = createDemoPayload();
-    payload.products = payload.products.map((product) => ({ ...product, partial: true }));
+    for (const product of payload.products) product.partial = true;
     payload.summary = { ...payload.summary, overall: "unknown", attentionMetrics: 0, unavailableProducts: 0, healthySources: 6 };
     render(<DashboardOverview data={payload} demo={false} />);
     expect(screen.getByText("额度未完全确认")).toBeVisible();
