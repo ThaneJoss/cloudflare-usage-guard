@@ -28,7 +28,8 @@
 - 当前压力信号按真实利用率排序。
 - 免费额度卡支持全部、需要关注、达到即停、可能计费和数据不可用筛选。
 - 数据刷新失败时保留最后一次成功快照，并明确标记 `STALE`。
-- 单个采集器失败只降级对应产品，不遮挡其他账户数据。
+- 单个采集器失败或超过 20 秒采集预算时只降级对应产品，保留其余来源已完成的数据。
+- 产品额度数据未知或不完整时不会显示账户运行正常；已经确认的阈值告警仍优先显示。可选账单来源单独失败不会改变产品额度态势，账单区和来源状态会显示失败原因。
 - 官方日级账单事实和 Analytics 近实时额度估算分区展示，避免混淆统计口径。
 - 只汇总成本驱动因素，并深链到 Cloudflare 原生账单中心，不在项目中复刻已有的
   日成本图、筛选器、历史账期和预算提醒。
@@ -40,7 +41,7 @@
 | Workers | 请求 | UTC 日 | Analytics 估算 |
 | Workers KV | 读、写、删除、列表、存储 | UTC 日 / 当前 | Analytics 估算 |
 | D1 | 行读取、行写入、账户存储 | UTC 日 / 当前 | Analytics 估算 |
-| R2 | Class A、Class B、当前存储快照 | UTC 月 / 当前 | Analytics 估算 |
+| R2 | 所有类别 Class A、Class B、当前存储快照 | UTC 月 / 当前 | Analytics 合计；未区分类别的非零值不推算免费余量 |
 | Queues | 计费操作 | UTC 日 | Analytics 估算 |
 | Pages | 构建次数 | UTC 月 | REST API 计数 / 下限数据 |
 | 可计费用量 | 当前账期成本驱动因素 | 日级 / 账期 | Billable Usage API V1 官方值 |
@@ -49,6 +50,17 @@ Workers AI、Images、Vectorize、Browser Rendering 和 Workflows 暂时只列�
 额度层”的覆盖缺口；它们的计费用量仍可能出现在官方日级账单层。项目不会用缺少来源的
 数据生成“看起来合理”的假进度。额度目录统一维护在
 `shared/quota-catalog.ts`，当前核对日期为 `2026-07-27`。
+
+### 数据完整性与采集预算
+
+- KV、D1、R2 存储查询达到 10,000 条返回上限时，无法证明结果完整，该产品会明确降级。
+  当前实现不会把截断子集当作账户总量；尚未实现完整存储分页。
+- 每个来源同时开始并拥有 20 秒采集预算。超时取消后续 GraphQL、REST 分页和 SDK 请求，
+  不等待忽略取消的来源；已完成来源仍进入快照。鉴权和缓存耗时不属于该采集预算。
+- R2 免费层只适用于 Standard。当前采集未验证可区分存储类别的字段，因此保留所有
+  类别的原始合计，但非零用量不展示免费额度使用率或重置时间；未知动作也不能按零处理。
+  完整成功查询的零估算仍可展示为零。真实费用继续以官方账单层为准。
+- 不完整的 Pages 下限可以证明已发生的告警，但低下限不能证明实际用量健康。
 
 ### 数据层与缓存
 
@@ -130,9 +142,11 @@ Vite 将 `/v1` 和 `/health` 代理到 `http://localhost:8787` 的本地 Worker�
 - Worker：`cloudflare-usage-guard`
 - 入口：`worker/src/index.ts`
 - 静态资源目录：`dist/`，启用 SPA 回退
-- 自定义域名：`cloudflare.thanejoss.com`
+- 生产 Worker Route：`cloudflare.thanejoss.com/*`（zone：`thanejoss.com`）
 - Access 团队域名：`https://thanejoss.cloudflareaccess.com`
 - 必需 Secrets：`CF_ACCOUNT_ID`、`CF_API_TOKEN`、`POLICY_AUD`
+
+项目沿用 `cloudflare.thanejoss.com` 当前 CNAME、目标及代理状态。`wrangler.jsonc` 只同步现有普通 Worker Route，不创建同名 Custom Domain 或接管 DNS。部署后通过实际域名核对当前 CNAME 链路、HTTPS 与 Access 登录。
 
 `POLICY_AUD` 必须使用现有 **主域** `cloudflare.thanejoss.com` Access 应用的
 Application Audience Tag。原 `api.cloudflare.thanejoss.com` 应用的 AUD 不再适用。
@@ -182,9 +196,9 @@ Worker subdomain API 开启 `previews_enabled` 并保留生产 `enabled` 原值�
    若先用 `wrangler versions upload --secrets-file` 上传新版本，须在上传静态资源前
    显式关闭并回读确认线上 `workers.dev` 与预览入口；版本上传不会应用配置文件中的
    触发器变更，仅设置 `preview_urls: false` 不足以关闭已经开放的预览入口。
-3. 完成本地质量验证，构建包含 `dist/` 的完整应用。安排切换窗口，按 Cloudflare
-   自定义域名要求处理主域现有 Vercel DNS 记录，并将完整 Worker、静态资源和新 AUD
-   一起发布到主域；核对最终域名绑定，旧 API 子域退出新应用配置。
+3. 完成本地质量验证，构建包含 `dist/` 的完整应用。安排切换窗口，保留主域当前 CNAME
+   及其目标、代理状态，通过 `cloudflare.thanejoss.com/*` 普通 Worker Route 将完整 Worker、
+   静态资源和新 AUD 一起发布到主域；核对路由指向 `cloudflare-usage-guard`，旧 API 子域退出新应用配置。
 4. 通过主域验证首次登录、页面与静态资源、`/v1/usage`、刷新及会话过期提示；核对
    安全响应头、静态缓存、未授权访问和 Worker 日志。确认默认域名与预览入口未开放。
 5. 验证完成后再清理原 Vercel 部署及旧 API 域相关配置。若需回滚，恢复旧前端主域绑定、

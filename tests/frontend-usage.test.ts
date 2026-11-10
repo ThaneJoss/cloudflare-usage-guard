@@ -7,6 +7,7 @@ import {
   matchesProductFilter,
   parseUsagePayload,
   rankMetricSignals,
+  worstMetricStatus,
 } from "../src/lib/usage";
 
 describe("前端用量契约", () => {
@@ -34,4 +35,22 @@ describe("前端用量契约", () => {
     expect(formatDate("2026-07-27T23:30:00.000Z")).toContain("2026");
     expect(QUOTA_CATALOG_AS_OF).toBe("2026-07-27");
   });
+  it("不完整产品进入关注筛选，未知指标不参与压力排序", () => {
+    const partial = createDemoPayload().products.find((item) => item.id === "pages")!;
+    partial.partial = true;
+    for (const metric of partial.metrics) {
+      metric.used = 1;
+      metric.utilization = 0.2;
+      metric.status = "unavailable";
+      metric.precision = "lower-bound";
+    }
+    expect(matchesProductFilter(partial, "attention")).toBe(true);
+    expect(matchesProductFilter(partial, "unavailable")).toBe(true);
+    expect(rankMetricSignals([partial])).toEqual([]);
+    expect(worstMetricStatus(partial.metrics)).toBe("unavailable");
+    expect(worstMetricStatus([
+      ...partial.metrics, { ...partial.metrics[0]!, status: "critical" },
+    ])).toBe("critical");
+  });
+
 });

@@ -30,6 +30,8 @@ export function DashboardOverview({
   data: UsagePayload;
   demo: boolean;
 }) {
+  const incomplete = data.products.some((product) => !product.available || product.partial ||
+    product.metrics.some((metric) => metric.status === "unavailable"));
   const signals = rankMetricSignals(data.products);
   const primarySignal = signals[0];
   const meterValue = Math.min(primarySignal?.metric.utilization ?? 0, 100);
@@ -89,14 +91,14 @@ export function DashboardOverview({
         />
         <SummaryCard
           icon={<AlertTriangle size={18} />}
-          label="需要关注"
+          label="阈值告警"
           value={String(data.summary.attentionMetrics)}
           note={
             data.summary.attentionMetrics > 0
               ? "已进入 70% 以上区间"
-              : "目前没有阈值告警"
+              : incomplete ? "部分额度无法判断" : "目前没有阈值告警"
           }
-          tone={data.summary.attentionMetrics > 0 ? "danger" : "success"}
+          tone={data.summary.attentionMetrics > 0 ? "danger" : incomplete ? "warning" : "success"}
         />
         <SummaryCard
           icon={<DatabaseZap size={18} />}
@@ -105,7 +107,7 @@ export function DashboardOverview({
           note={
             data.summary.unavailableProducts
               ? `${data.summary.unavailableProducts} 个产品不可用`
-              : "所有核心采集器在线"
+              : data.summary.healthySources < data.summary.totalSources ? "部分数据源未完整覆盖" : "所有核心采集器在线"
           }
           tone={
             data.summary.healthySources === data.summary.totalSources

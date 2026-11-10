@@ -14,6 +14,12 @@ import { loadCachedJson, type ResponseCache } from "./cache";
 const CLOUDFLARE_API = "https://api.cloudflare.com/client/v4";
 const CLOUDFLARE_GRAPHQL = `${CLOUDFLARE_API}/graphql`;
 const REQUEST_TIMEOUT_MS = 15_000;
+const GRAPHQL_GROUP_LIMIT = 10_000;
+const STORAGE_DATASETS = new Set([
+  "kvStorageAdaptiveGroups",
+  "d1StorageAdaptiveGroups",
+  "r2StorageAdaptiveGroups",
+]);
 const REST_PAGE_SIZE = 100;
 const MAX_REST_PAGES = 250;
 const PAGES_REST_PAGE_SIZE = 10;
@@ -273,13 +279,13 @@ export class CloudflareClient {
     }).billing.usage;
   }
 
-  async getWorkersUsage(windows: TimeWindows): Promise<WorkersUsageRaw> {
+  async getWorkersUsage(windows: TimeWindows, signal?: AbortSignal): Promise<WorkersUsageRaw> {
     const groups = await this.#graphQlGroups(
       `query WorkersUsage($accountTag: String!, $start: Time!, $end: Time!) {
         viewer {
           accounts(filter: { accountTag: $accountTag }) {
             workersInvocationsAdaptive(
-              limit: 10000
+              limit: ${GRAPHQL_GROUP_LIMIT}
               filter: { datetime_geq: $start, datetime_lt: $end }
             ) {
               sum { requests errors }
@@ -291,6 +297,7 @@ export class CloudflareClient {
       "workersInvocationsAdaptive",
       { accountTag: this.#accountId, start: windows.dayStart, end: windows.dayEnd },
       workersGroupSchema,
+      signal,
     );
 
     return {
@@ -304,14 +311,14 @@ export class CloudflareClient {
     };
   }
 
-  async getKvUsage(windows: TimeWindows): Promise<KvUsageRaw> {
+  async getKvUsage(windows: TimeWindows, signal?: AbortSignal): Promise<KvUsageRaw> {
     const [operations, storage] = await Promise.all([
       this.#graphQlGroups(
         `query KvOperations($accountTag: String!, $start: Time!, $end: Time!) {
           viewer {
             accounts(filter: { accountTag: $accountTag }) {
               kvOperationsAdaptiveGroups(
-                limit: 10000
+                limit: ${GRAPHQL_GROUP_LIMIT}
                 filter: { datetime_geq: $start, datetime_lt: $end }
               ) {
                 sum { requests }
@@ -323,13 +330,14 @@ export class CloudflareClient {
         "kvOperationsAdaptiveGroups",
         { accountTag: this.#accountId, start: windows.dayStart, end: windows.dayEnd },
         operationGroupSchema,
+        signal,
       ),
       this.#graphQlGroups(
         `query KvStorage($accountTag: String!, $start: Date!, $end: Date!) {
           viewer {
             accounts(filter: { accountTag: $accountTag }) {
               kvStorageAdaptiveGroups(
-                limit: 10000
+                limit: ${GRAPHQL_GROUP_LIMIT}
                 filter: { date_geq: $start, date_leq: $end }
               ) {
                 max { byteCount keyCount }
@@ -345,6 +353,7 @@ export class CloudflareClient {
           end: windows.todayDate,
         },
         kvStorageGroupSchema,
+        signal,
       ),
     ]);
 
@@ -381,14 +390,14 @@ export class CloudflareClient {
     };
   }
 
-  async getD1Usage(windows: TimeWindows): Promise<D1UsageRaw> {
+  async getD1Usage(windows: TimeWindows, signal?: AbortSignal): Promise<D1UsageRaw> {
     const [operations, storage] = await Promise.all([
       this.#graphQlGroups(
         `query D1Operations($accountTag: String!, $start: Time!, $end: Time!) {
           viewer {
             accounts(filter: { accountTag: $accountTag }) {
               d1AnalyticsAdaptiveGroups(
-                limit: 10000
+                limit: ${GRAPHQL_GROUP_LIMIT}
                 filter: { datetime_geq: $start, datetime_lt: $end }
               ) {
                 sum { rowsRead rowsWritten }
@@ -399,13 +408,14 @@ export class CloudflareClient {
         "d1AnalyticsAdaptiveGroups",
         { accountTag: this.#accountId, start: windows.dayStart, end: windows.dayEnd },
         d1AnalyticsGroupSchema,
+        signal,
       ),
       this.#graphQlGroups(
         `query D1Storage($accountTag: String!, $start: Date!, $end: Date!) {
           viewer {
             accounts(filter: { accountTag: $accountTag }) {
               d1StorageAdaptiveGroups(
-                limit: 10000
+                limit: ${GRAPHQL_GROUP_LIMIT}
                 filter: { date_geq: $start, date_leq: $end }
               ) {
                 max { databaseSizeBytes }
@@ -421,6 +431,7 @@ export class CloudflareClient {
           end: windows.todayDate,
         },
         d1StorageGroupSchema,
+        signal,
       ),
     ]);
 
@@ -437,14 +448,14 @@ export class CloudflareClient {
     };
   }
 
-  async getR2Usage(windows: TimeWindows): Promise<R2UsageRaw> {
+  async getR2Usage(windows: TimeWindows, signal?: AbortSignal): Promise<R2UsageRaw> {
     const [operations, storage] = await Promise.all([
       this.#graphQlGroups(
         `query R2Operations($accountTag: String!, $start: Time!, $end: Time!) {
           viewer {
             accounts(filter: { accountTag: $accountTag }) {
               r2OperationsAdaptiveGroups(
-                limit: 10000
+                limit: ${GRAPHQL_GROUP_LIMIT}
                 filter: { datetime_geq: $start, datetime_lt: $end }
               ) {
                 sum { requests }
@@ -460,13 +471,14 @@ export class CloudflareClient {
           end: windows.monthEnd,
         },
         operationGroupSchema,
+        signal,
       ),
       this.#graphQlGroups(
         `query R2Storage($accountTag: String!, $start: Time!, $end: Time!) {
           viewer {
             accounts(filter: { accountTag: $accountTag }) {
               r2StorageAdaptiveGroups(
-                limit: 10000
+                limit: ${GRAPHQL_GROUP_LIMIT}
                 filter: { datetime_geq: $start, datetime_lt: $end }
               ) {
                 max { payloadSize metadataSize objectCount }
@@ -482,6 +494,7 @@ export class CloudflareClient {
           end: windows.monthEnd,
         },
         r2StorageGroupSchema,
+        signal,
       ),
     ]);
 
@@ -512,13 +525,13 @@ export class CloudflareClient {
     };
   }
 
-  async getQueueUsage(windows: TimeWindows): Promise<QueueUsageRaw> {
+  async getQueueUsage(windows: TimeWindows, signal?: AbortSignal): Promise<QueueUsageRaw> {
     const groups = await this.#graphQlGroups(
       `query QueueOperations($accountTag: String!, $start: Time!, $end: Time!) {
         viewer {
           accounts(filter: { accountTag: $accountTag }) {
             queueMessageOperationsAdaptiveGroups(
-              limit: 10000
+              limit: ${GRAPHQL_GROUP_LIMIT}
               filter: { datetime_geq: $start, datetime_lt: $end }
             ) {
               sum { billableOperations }
@@ -530,6 +543,7 @@ export class CloudflareClient {
       "queueMessageOperationsAdaptiveGroups",
       { accountTag: this.#accountId, start: windows.dayStart, end: windows.dayEnd },
       queueGroupSchema,
+      signal,
     );
 
     return {
@@ -539,11 +553,12 @@ export class CloudflareClient {
     };
   }
 
-  async getPagesUsage(windows: TimeWindows): Promise<PagesUsageRaw> {
+  async getPagesUsage(windows: TimeWindows, signal?: AbortSignal): Promise<PagesUsageRaw> {
     const projectsResult = await this.#restList(
       `/accounts/${encodeURIComponent(this.#accountId)}/pages/projects`,
       pagesProjectSchema,
       { maxPages: 5, perPage: PAGES_REST_PAGE_SIZE },
+      signal,
     );
     const projects = projectsResult.items;
     const projectResults = await mapSettledWithConcurrency(
@@ -560,6 +575,7 @@ export class CloudflareClient {
                 (deployment) => deployment.created_on < windows.monthStart,
               ),
           },
+          signal,
         );
         const builds = deploymentsResult.items.filter((deployment) => {
           const trigger = deployment.deployment_trigger?.type;
@@ -575,6 +591,7 @@ export class CloudflareClient {
           partial: !deploymentsResult.complete,
         };
       },
+      signal,
     );
 
     let builds = 0;
@@ -598,7 +615,8 @@ export class CloudflareClient {
     };
   }
 
-  async getBillableUsage(): Promise<BillableUsageRaw> {
+  async getBillableUsage(signal?: AbortSignal): Promise<BillableUsageRaw> {
+    signal?.throwIfAborted();
     return loadCachedJson({
       cache: this.#cache,
       key: this.#billingCacheKey,
@@ -606,17 +624,20 @@ export class CloudflareClient {
       ttlSeconds: BILLABLE_USAGE_CACHE_TTL_SECONDS,
       schema: billableUsageRawSchema,
       load: async () => {
+        signal?.throwIfAborted();
+        const requestOptions = signal ? { signal } : undefined;
         const info = billableUsageInfoSchema.parse(
           await this.#billingUsage.getAccountUsageInfoV1({
             account_id: this.#accountId,
-          }),
+          }, requestOptions),
         );
         if (!info.covered) return { ...info, rows: [] };
 
+        signal?.throwIfAborted();
         const rows = z.array(billableUsageRowSchema).parse(
           await this.#billingUsage.getAccountUsageV1({
             account_id: this.#accountId,
-          }),
+          }, requestOptions),
         );
         return { ...info, rows };
       },
@@ -628,12 +649,14 @@ export class CloudflareClient {
     dataset: string,
     variables: Record<string, string>,
     groupSchema: T,
+    signal?: AbortSignal,
   ): Promise<Array<z.infer<T>>> {
+    signal?.throwIfAborted();
     const response = await this.#fetcher(CLOUDFLARE_GRAPHQL, {
       method: "POST",
       headers: this.#headers(),
       body: JSON.stringify({ query, variables }),
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      signal: requestSignal(signal),
     });
     const body = graphQlEnvelopeSchema.parse(await parseJson(response));
     if (!response.ok) {
@@ -649,18 +672,26 @@ export class CloudflareClient {
     }
     const account = body.data?.viewer.accounts[0];
     if (!account) throw new CloudflareApiError("GraphQL 未返回目标账户");
-    return z.array(groupSchema).parse(account[dataset]);
+    const groups = z.array(groupSchema).parse(account[dataset]);
+    if (STORAGE_DATASETS.has(dataset) && groups.length >= GRAPHQL_GROUP_LIMIT) {
+      throw new CloudflareApiError(
+        "存储查询达到返回上限，无法确认数据完整性；暂不计算账户存储额度",
+      );
+    }
+    return groups;
   }
 
   async #rest(
     path: string,
+    signal?: AbortSignal,
   ): Promise<{
     result: unknown;
     resultInfo: z.infer<typeof restEnvelopeSchema>["result_info"];
   }> {
+    signal?.throwIfAborted();
     const response = await this.#fetcher(`${CLOUDFLARE_API}${path}`, {
       headers: this.#headers(),
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      signal: requestSignal(signal),
     });
     const body = restEnvelopeSchema.parse(await parseJson(response));
     if (!response.ok || !body.success) {
@@ -683,14 +714,17 @@ export class CloudflareClient {
       perPage?: number;
       stopWhen?: (items: T[]) => boolean;
     } = {},
+    signal?: AbortSignal,
   ): Promise<{ items: T[]; complete: boolean }> {
     const items: T[] = [];
     const maxPages = options.maxPages ?? MAX_REST_PAGES;
     const perPage = options.perPage ?? REST_PAGE_SIZE;
 
     for (let page = 1; page <= maxPages; page += 1) {
+      signal?.throwIfAborted();
       const response = await this.#rest(
         withPagination(path, page, perPage),
+        signal,
       );
       const pageItems = z.array(itemSchema).parse(response.result);
       items.push(...pageItems);
@@ -748,10 +782,12 @@ async function mapSettledWithConcurrency<T, R>(
   items: T[],
   concurrency: number,
   map: (item: T) => Promise<R>,
+  signal?: AbortSignal,
 ): Promise<Array<PromiseSettledResult<R>>> {
   const results: Array<PromiseSettledResult<R>> = [];
 
   for (let start = 0; start < items.length; start += concurrency) {
+    signal?.throwIfAborted();
     const batch = items.slice(start, start + concurrency);
     results.push(...(await Promise.allSettled(batch.map(map))));
   }
@@ -761,4 +797,9 @@ async function mapSettledWithConcurrency<T, R>(
 
 function sanitizeMessage(message: string | undefined): string {
   return (message ?? "").replace(/[\r\n]+/g, " ").slice(0, 180);
+}
+
+function requestSignal(signal?: AbortSignal): AbortSignal {
+  const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
+  return signal ? AbortSignal.any([signal, timeout]) : timeout;
 }

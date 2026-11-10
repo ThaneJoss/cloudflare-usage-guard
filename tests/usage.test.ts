@@ -1,7 +1,9 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { getTimeWindows } from "../worker/src/lib/metrics";
 import { collectUsage, type UsageClient } from "../worker/src/usage";
+
+afterEach(() => vi.useRealTimers());
 
 describe("collectUsage", () => {
   it("isolates product failures and summarizes the remaining data", async () => {
@@ -50,10 +52,10 @@ describe("collectUsage", () => {
     expect(result.generatedAt).toBe(now.toISOString());
     expect(result.summary).toEqual({
       overall: "exceeded",
-      trackedMetrics: 9,
+      trackedMetrics: 6,
       attentionMetrics: 3,
       unavailableProducts: 1,
-      healthySources: 5,
+      healthySources: 4,
       totalSources: 7,
     });
     expect(result.products.find((product) => product.id === "kv")).toMatchObject({
@@ -90,7 +92,7 @@ describe("collectUsage", () => {
       dataAsOf: "2026-07-21T00:00:00.000Z",
     });
     expect(result.realtimeCoverageGaps.length).toBeGreaterThan(0);
-    expect(client.getWorkersUsage).toHaveBeenCalledWith(getTimeWindows(now));
+    expect(client.getWorkersUsage).toHaveBeenCalledWith(getTimeWindows(now), expect.any(AbortSignal));
   });
 
   it("keeps optional billing failures from hiding quota data", async () => {
@@ -166,6 +168,76 @@ describe("collectUsage", () => {
       message: "此账户暂未被 Billable Usage API 覆盖",
     });
   });
+  it("慢 Pages 和账单在同一预算内降级，保留已完成来源", async () => {
+    vi.useFakeTimers();
+    const client = zeroUsageClient();
+    const never = new Promise<never>(() => undefined);
+    client.getPagesUsage = vi.fn().mockReturnValue(never);
+    client.getBillableUsage = vi.fn().mockReturnValue(never);
+    client.getWorkersUsage = vi.fn().mockResolvedValue({ requests: 123, errors: 0, scripts: 1 });
+    const pending = collectUsage(
+      { CF_ACCOUNT_ID: "account", CF_API_TOKEN: "token" }, new Date(), client,
+    );
+    await vi.advanceTimersByTimeAsync(20_000);
+    const result = await pending;
+    expect(result.products.find((product) => product.id === "workers")?.metrics[0]?.used).toBe(123);
+    expect(result.products.find((product) => product.id === "pages")).toMatchObject({
+      available: false, error: "Cloudflare API 请求超时",
+    });
+    expect(result.billing.available).toBe(false);
+    expect(result.summary.overall).toBe("unknown");
+    expect(client.getPagesUsage).toHaveBeenCalledWith(expect.any(Object), expect.any(AbortSignal));
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it.each([
+    { classA: 1, classB: 0, storageBytes: 0, unknownOperations: 0, expected: [null, 0, 0] },
+    { classA: 0, classB: 1, storageBytes: 0, unknownOperations: 0, expected: [0, null, 0] },
+    { classA: 0, classB: 0, storageBytes: 1, unknownOperations: 0, expected: [0, 0, null] },
+    { classA: 0, classB: 0, storageBytes: 0, unknownOperations: 1, expected: [null, null, 0] },
+  ])("R2 类别未知时不推算免费余量：%j", async ({ expected, ...raw }) => {
+    const client = zeroUsageClient();
+    client.getR2Usage = vi.fn().mockResolvedValue({ ...raw, freeOperations: 0 });
+    const result = await collectUsage(
+      { CF_ACCOUNT_ID: "account", CF_API_TOKEN: "token" }, new Date(), client,
+    );
+    const r2 = result.products.find((product) => product.id === "r2")!;
+    expect(r2).toMatchObject({ available: true, partial: true });
+    expect(r2.metrics.map((metric) => metric.used)).toEqual(expected);
+    expect(r2.metrics.every((metric) => metric.resetAt === null)).toBe(true);
+    expect(r2.metrics.filter((metric) => metric.used === null).every((metric) =>
+      metric.utilization === null && metric.status === "unavailable",
+    )).toBe(true);
+    expect(r2.details.find((detail) => detail.label.includes("Class A"))?.value).toBe(String(raw.classA));
+    expect(r2.error).toContain("存储类别未区分");
+    expect(result.sources.find((source) => source.id === "r2")?.status).toBe("partial");
+    expect(result.summary.overall).toBe("unknown");
+  });
+
+  it("完整的全类别零估算仍可确认 Standard 未使用额度", async () => {
+    const result = await collectUsage(
+      { CF_ACCOUNT_ID: "account", CF_API_TOKEN: "token" }, new Date(), zeroUsageClient(),
+    );
+    const r2 = result.products.find((product) => product.id === "r2")!;
+    expect(r2.partial).toBe(false);
+    expect(r2.metrics.map((metric) => metric.used)).toEqual([0, 0, 0]);
+    expect(result.summary.overall).toBe("ok");
+  });
+
+  it("低于阈值的 Pages 下限不能证明账户健康", async () => {
+    const client = zeroUsageClient();
+    client.getPagesUsage = vi.fn().mockResolvedValue({
+      builds: 1, projectsChecked: 2, partial: true, failedProjects: 1,
+    });
+    const result = await collectUsage(
+      { CF_ACCOUNT_ID: "account", CF_API_TOKEN: "token" }, new Date(), client,
+    );
+    expect(result.products.find((product) => product.id === "pages")?.metrics[0]).toMatchObject({
+      used: 1, precision: "lower-bound", status: "unavailable",
+    });
+    expect(result.summary.overall).toBe("unknown");
+  });
+
 });
 
 function zeroUsageClient(): UsageClient {

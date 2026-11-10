@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
+import { DashboardOverview } from "../src/components/DashboardOverview";
 import { BillingSection } from "../src/components/BillingSection";
 import { DataLoadErrorScreen } from "../src/components/DataLoadErrorScreen";
 import { UsageSection } from "../src/components/UsageSection";
@@ -126,4 +127,39 @@ describe("控制台组件", () => {
       screen.getByRole("button", { name: "刷新页面以登录" }),
     ).toBeVisible();
   });
+  it("R2 类别未知不会显示健康、重置时间或下限标签", () => {
+    const payload = createDemoPayload();
+    const product = payload.products.find((item) => item.id === "r2")!;
+    product.partial = true;
+    product.error = "存储类别未区分，免费额度无法判断";
+    for (const metric of product.metrics) {
+      metric.used = null;
+      metric.utilization = null;
+      metric.resetAt = null;
+      metric.status = "unavailable";
+    }
+    render(<UsageSection products={[product]} filter="attention" onFilterChange={vi.fn()} />);
+    expect(screen.getByRole("heading", { name: "R2" })).toBeVisible();
+    expect(screen.getByText("额度未完全确认")).toBeVisible();
+    expect(screen.getByText(/存储类别未区分/)).toBeVisible();
+    expect(screen.queryByText("运行稳健")).not.toBeInTheDocument();
+    expect(screen.queryByText("下限数据")).not.toBeInTheDocument();
+    expect(screen.queryByText(/重置/)).not.toBeInTheDocument();
+    for (const bar of screen.getAllByRole("progressbar")) {
+      expect(bar).not.toHaveAttribute("aria-valuenow");
+    }
+  });
+
+  it("部分数据不能显示全部采集器在线或没有风险", () => {
+    const payload = createDemoPayload();
+    for (const product of payload.products) product.partial = true;
+    payload.summary = { ...payload.summary, overall: "unknown", attentionMetrics: 0, unavailableProducts: 0, healthySources: 6 };
+    render(<DashboardOverview data={payload} demo={false} />);
+    expect(screen.getByText("额度未完全确认")).toBeVisible();
+    expect(screen.getByText("部分额度无法判断")).toBeVisible();
+    expect(screen.getByText("部分数据源未完整覆盖")).toBeVisible();
+    expect(screen.queryByText("所有核心采集器在线")).not.toBeInTheDocument();
+    expect(screen.queryByText("目前没有阈值告警")).not.toBeInTheDocument();
+  });
+
 });
