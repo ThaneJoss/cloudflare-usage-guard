@@ -39,7 +39,9 @@ export function matchesProductFilter(
   filter: ProductFilter,
 ): boolean {
   if (filter === "all") return true;
-  if (filter === "unavailable") return !product.available;
+  const incomplete = !product.available || product.partial ||
+    product.metrics.some((metric) => metric.status === "unavailable");
+  if (filter === "unavailable") return incomplete;
   if (filter === "hard-stop") return product.behavior === "hard-stop";
   if (filter === "paid-overage") {
     return (
@@ -52,7 +54,7 @@ export function matchesProductFilter(
     "critical",
     "exceeded",
   ]);
-  return product.metrics.some((metric) => attentionStatuses.has(metric.status));
+  return incomplete || product.metrics.some((metric) => attentionStatuses.has(metric.status));
 }
 
 export function rankMetricSignals(products: ProductUsage[]): MetricSignal[] {
@@ -60,7 +62,7 @@ export function rankMetricSignals(products: ProductUsage[]): MetricSignal[] {
     .flatMap((product) =>
       product.metrics.map((metric) => ({ metric, product })),
     )
-    .filter((signal) => signal.metric.utilization !== null)
+    .filter((signal) => signal.metric.utilization !== null && signal.metric.status !== "unavailable")
     .toSorted(
       (left, right) =>
         (right.metric.utilization ?? 0) - (left.metric.utilization ?? 0),
@@ -72,6 +74,7 @@ export function worstMetricStatus(metrics: UsageMetric[]): UsageStatus {
   if (statuses.has("exceeded")) return "exceeded";
   if (statuses.has("critical")) return "critical";
   if (statuses.has("watch")) return "watch";
+  if (statuses.has("unavailable")) return "unavailable";
   if (statuses.has("ok")) return "ok";
   return "unavailable";
 }
@@ -85,7 +88,7 @@ export function statusLabel(
     critical: "接近上限",
     exceeded: "已经超限",
     unavailable: "数据不可用",
-    unknown: "等待数据",
+    unknown: "额度未完全确认",
   } as const;
   return labels[status];
 }

@@ -94,7 +94,9 @@ export function UsageSection({
 }
 
 function ProductCard({ product }: { product: ProductUsage }) {
-  const status = worstMetricStatus(product.metrics);
+  const knownStatus = worstMetricStatus(product.metrics);
+  const status = knownStatus === "ok" && (!product.available || product.partial)
+    ? "unavailable" : knownStatus;
 
   return (
     <article className={`product-card status-${status}`}>
@@ -137,7 +139,7 @@ function ProductCard({ product }: { product: ProductUsage }) {
       <div className="product-card-footer">
         <div className="detail-list">
           {product.partial ? (
-            <span className="partial-tag"><ShieldAlert size={12} /> 下限数据</span>
+            <span className="partial-tag"><ShieldAlert size={12} /> {product.metrics.some((metric) => metric.precision === "lower-bound") ? "下限数据" : "额度未完全确认"}</span>
           ) : null}
           {product.details.map((detail) => (
             <span key={detail.label}>
